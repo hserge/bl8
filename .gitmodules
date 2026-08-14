@@ -1,0 +1,6 @@
+[submodule "redirect"]
+	path = redirect
+	url = git@hserge.github.com:hserge/bl8-redirect.git
+[submodule "ui"]
+	path = ui
+	url = git@hserge.github.com:hserge/bl8-ui.git
