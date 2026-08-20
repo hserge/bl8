@@ -27,14 +27,33 @@ system, manually overridable and persisted) added alongside it. See research.md'
 component library", "Light/dark mode", and "Light palette" decisions.
 
 **Amendment (2026-08-17, v2)**: Constitution v3.6.0 adds a concrete design-reference
-requirement (`docs/design.png` for color/typography/visual style, `docs/form_content.png` for
-the top shorten/QR form and page orientation), which **supersedes** the "Light palette"
+requirement (two reference images: one for color/typography/visual style, one for the top
+shorten/QR form and page orientation), which **supersedes** the "Light palette"
 decision above with a reconciled visual system — see research.md's "Design reference — visual
 system", "Design reference — content honesty", and "Public shorten-form: auth gating and
 continuation" decisions. The public landing page gains a functional (not decorative) tabbed
 Short Link/QR Code form matching the reference; submitting it while signed out carries the
 entered values through the Google sign-in redirect and completes creation afterward — FR-001
 still holds (no Postgres write happens before authentication), only the entry point changes.
+
+**Amendment (2026-08-18, v3)**: Constitution v4.0.0 removed the prior image-based design
+reference entirely; v4.1.0 replaced it with a single external
+reference — the "Increase Design System" (an institutional fintech/banking design system) —
+governing color, typography, and visual style only (not layout/orientation). Existing page
+structure is retained (Principle VI: the new rule doesn't ask for restructuring); only the
+color tokens, fonts, and radius/shadow values change. See research.md's "Design reference —
+Increase Design System" for the full hex→OKLCH token mapping, the font-licensing note (Inter/
+JetBrains Mono used as the constitution's own documented fallbacks for the unavailable
+commercial "Untitled Sans"/"Input Mono"), and the reintroduction of monospace styling for short
+codes.
+
+**Amendment (2026-08-20, v4)**: Constitution v4.2.0 repoints the design reference at a local
+working implementation, `docs/design/` (`styles.css`/`index.html`), rather than the external
+style-guide URL — same design system, more precise source. See research.md's "Design reference
+— Increase Design System" → "Correction (2026-08-20, constitution v4.2.0)" for the specific
+fixes: an actual mint-tint hover fill (not neutral gray, as previously guessed), the exact type
+scale and shadow recipes (not approximated), and a new code-specific accent color (`#7ec4ff`)
+applied to short-code chips. All localized token-level corrections — no structural changes.
 
 ## Technical Context
 
@@ -49,10 +68,13 @@ directly useful, not speculative); `ioredis` (Redis write-through client); `qrco
 2026-08-17, see research.md); `shadcn-svelte` (CLI-scaffolded components) + `bits-ui`
 (headless primitives it wraps) + `@lucide/svelte` (icon set) — frontend component library,
 constitution-mandated (resolved 2026-08-17, see research.md); `mode-watcher` — light/dark/
-system theme switching with persistence (resolved 2026-08-17, see research.md); `Plus Jakarta
-Sans` (display/heading font) + `Inter` (body/UI font) — typography matching `docs/design.png`
-(resolved 2026-08-17, see research.md's "Design reference — visual system"; supersedes the
-prior monospace-for-codes treatment, now dropped)
+system theme switching with persistence (resolved 2026-08-17, see research.md); `Inter`
+(display/heading + body/UI font) + `JetBrains Mono` (code/data — short codes, aliases) —
+typography per the "Increase Design System" constitution reference (resolved 2026-08-18, see
+research.md's "Design reference — Increase Design System"; Inter/JetBrains Mono are the
+constitution's own documented fallbacks for the unlicensed commercial "Untitled Sans"/"Input
+Mono"; supersedes the prior `Plus Jakarta Sans` display font and the dropped-monospace
+decision — monospace for short codes is back)
 
 **Storage**: Postgres (source of truth for users, links, and click-analytics reads — this app
 owns the schema and runs migrations); Redis (write-through target only — this app never reads
@@ -106,7 +128,7 @@ and QR generation is scoped to the authenticated owner
 | Technology & Architecture Constraints — Frontend component library | PASS (this plan) | This plan is precisely the shadcn-svelte migration the constraint requires — see "Frontend component library" in research.md. |
 | Frontend Design Workflow | PASS (this plan) | The `frontend-design` and `ui-ux-pro-max` skills are used to design the light palette (research.md's "Light palette") before implementation, and MUST continue to be used for any further UI work on this feature. |
 | Ambiguity Resolution | PASS (this plan) | The dark-mode requirement ("default to system") was genuinely ambiguous between a system-only theme and a manual toggle defaulting to system; resolved via an explicit clarifying question rather than assumed — see research.md's "Light/dark mode". Whether the public shorten form should live behind a login wall or on the public page was also ambiguous given FR-001; resolved by asking directly — see research.md's "Public shorten-form: auth gating and continuation". |
-| Frontend Design Workflow — Design reference | PASS (this plan) | `docs/design.png` and `docs/form_content.png` were both viewed and used to derive research.md's "Design reference — visual system" before any component decisions were made; screens/components not shown in either image extend the same visual language rather than introducing a new style (e.g. the content-honesty decision, the dropped monospace treatment). |
+| Frontend Design Workflow — Design reference | PASS (this plan) | The prior image-based design-reference rule was removed in constitution v4.0.0 and replaced in v4.1.0 by the "Increase Design System" URL; v4.2.0 repointed it at the local `docs/design/` implementation, read directly (not just its earlier prose summary) before drafting research.md's "Correction (2026-08-20)" entry. The new rule scopes only color/typography/visual style (not layout), so existing structure is knowingly retained rather than re-derived — a deliberate reading of the rule's actual scope, not an oversight. |
 
 No violations. Complexity Tracking table is empty and omitted below.
 
@@ -128,6 +150,18 @@ outcomes, no new write path, FR-001 still holds since the write only happens pos
 quickstart.md gains two new validation sections (theme toggle + visual smoke-check; the public
 shorten-form's logged-in/logged-out/carry-through-after-signin behaviors). All principles and
 the newer constitution sections above still PASS.
+
+**Re-check after the 2026-08-18 amendment**: the design-system swap (Increase Design System
+tokens replacing the Stratus-era teal-green ones) is a token/typography-only change to files
+already covered by the prior re-check — no new entities, write paths, or contracts. quickstart.md
+gains one new validation section (color/typography spot-check against the new tokens). All
+principles and constitution sections still PASS.
+
+**Re-check after the 2026-08-20 amendment**: the token corrections (mint-tint hover, exact
+shadow/type-scale values, the new code-accent color) are refinements to the same files the
+2026-08-18 re-check already covers — no new entities, write paths, or contracts, no structural
+change. quickstart.md's existing token-validation section gains a few more specific checks
+rather than a new section. All principles and constitution sections still PASS.
 
 ## Project Structure
 
@@ -173,8 +207,8 @@ ui/
 │   │   │   └── +page.server.ts                    # load: same Postgres reachability check as health/+server.ts
 │   │   ├── +layout.svelte                          # imports layout.css, mounts <ModeWatcher />
 │   │   └── layout.css                                # @import "tailwindcss"; + shadcn-svelte OKLCH tokens
-│   │                                                    # in :root (light, design.png) / .dark (dark, navy
-│   │                                                    # from form_content.png's hero) — resolved 2026-08-17
+│   │                                                    # in :root / .dark — Increase Design System palette
+│   │                                                    # (Fog/Mint-Signal/Abyss/Inkwell-Navy) — resolved 2026-08-18
 │   ├── lib/
 │   │   ├── server/
 │   │   │   ├── db/                             # drizzle schema + client (links, users, click_events read)
@@ -192,9 +226,11 @@ ui/
 │   │   │   │                                        # resolved 2026-08-17, added via CLI as pages migrate
 │   │   │   ├── Header.svelte                     # app nav bar, composed from shadcn-svelte primitives
 │   │   │   ├── ModeToggle.svelte                    # light/dark/system switcher (mode-watcher)
-│   │   │   └── ShortenForm.svelte                     # tabbed Short Link/QR Code hero card (form_content.png) —
-│   │   │                                                # shared by the public landing page and /links/new
-│   │   │                                                # (resolved 2026-08-17, research.md)
+│   │   │   └── ShortenForm.svelte                     # tabbed Short Link/QR Code hero card — structure
+│   │   │                                                # retained from the prior design reference (Principle
+│   │   │                                                # VI; the current constitution rule governs color/type
+│   │   │                                                # only, not layout), shared by the public landing page
+│   │   │                                                # and /links/new
 │   │   └── utils.ts                                # shadcn-svelte's cn() class-merge helper (CLI-generated)
 │   └── app.d.ts
 ├── components.json                          # shadcn-svelte CLI config — resolved 2026-08-17

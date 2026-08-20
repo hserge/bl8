@@ -1,0 +1,11 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "bl8-ui",
+			"runtimeExecutable": "bash",
+			"runtimeArgs": ["-c", "cd /Users/hserge/dev/mixed/bl8/ui && pnpm run dev"],
+			"port": 5173
+		}
+	]
+}

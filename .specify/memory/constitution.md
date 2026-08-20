@@ -1,13 +1,17 @@
 <!--
 Sync Impact Report
-Version change: 3.5.0 → 3.6.0
+Version change: 4.1.0 → 4.2.0
 Modified principles: none
-Added sections:
-  - Frontend Design Workflow: new "Design reference" sub-rule — UI/UX MUST match the reference
-    images at docs/design.png (look/feel/color/typography/visual style) and
-    docs/form_content.png (primary link-shortening/QR-code form + page content layout and
-    orientation), consulted before any visual/layout/component decision; unreferenced
-    screens/components MUST extend the same visual language rather than introduce a new style
+Added sections: none
+Changed sections:
+  - Frontend Design Workflow — "Design reference": now points primarily at the local working
+    implementation `docs/design/` (styles.css is the authoritative token source; index.html
+    shows real component markup) rather than the external style-guide URL, which is kept only
+    as background/provenance. The extracted-token fallback list is replaced with a fuller,
+    more precise set pulled directly from styles.css: exact type scale (display down to small
+    text, with sizes and letter-spacing), the 4px spacing scale, all radius tiers, the
+    three-tier shadow system with real values, mint-tint hover fill, and a code-specific accent
+    color (#7ec4ff) not previously captured.
 Removed sections: none
 Follow-up TODOs: none
 -->
@@ -173,17 +177,46 @@ already present and functional there first. Every component MUST be verified wor
 **Rationale**: This guarantees the core experience is fully functional on the most constrained
 viewport, and prevents desktop-first designs that degrade or break when scaled down.
 
-**Design reference**: All UI/UX design and implementation MUST match the reference images at
-`docs/design.png` (overall look, feel, color palette, typography, and visual style) and
-`docs/form_content.png` (the primary link-shortening/QR-code form, and overall page content
-layout and orientation). Both images MUST be consulted before making any visual, layout, or
-component decision. Where a screen or component isn't shown in either reference, its design
-MUST extend the visual language the references establish rather than introducing a new,
-unrelated style.
+**Design reference**: All UI/UX design and implementation MUST match the "Increase Design
+System" as implemented at `docs/design/` (a working HTML/CSS/JS reference build —
+`styles.css` is the authoritative token source; `index.html` shows real component markup).
+This local implementation is the primary reference, taking precedence over the design system's
+public write-up at https://styles.refero.design/style/1ad4f49f-275a-4268-8ed1-677dc3c6e475
+(kept only as background/provenance) since it is more precise and cannot go unreachable. The
+following tokens, extracted from `docs/design/styles.css`, are the source of truth if that file
+is ever unavailable:
 
-**Rationale**: A concrete visual reference removes ambiguity that guidance alone leaves open,
-and keeps every screen visually coherent with the two anchor references instead of drifting
-screen-by-screen.
+- **Color**: `#1a2b3b` Inkwell Navy (primary text); `#edf0f2` Fog / `#ffffff` White
+  (backgrounds); `#31f2bf` Mint Signal (primary accent) with `rgba(49,242,191,0.08)` as its
+  light hover/tint fill; `#e4ff33` Voltage (reserved exclusively for a full-bleed announcement
+  bar, never general-purpose); `#0d1726` Abyss (dark surfaces); `#7ec4ff` (code-specific
+  accent); neutrals `#314352` Slate, `#687887` Graphite, `#8995a1` Steel, `#bdc2c8` Pewter,
+  `#caced2` Silver, `#e1e5e9` Mist.
+- **Typography**: "Untitled Sans" (fallback Inter) for primary text; "Input Mono" (fallback
+  JetBrains Mono) for code/data. Type scale: display `clamp(44px, 7vw, 90px)` at
+  `clamp(-2.6px, -0.06em, -5.4px)` letter-spacing; headings step down through 40px/-1.6px,
+  32px/-1.28px, 24px/-0.96px, 20px/-0.2px; body 16px/-0.16px; small text 13px/-0.13px down to
+  10px/-0.1px; eyebrow/label text is the one exception with *positive* tracking (`+0.08em`),
+  not negative.
+- **Spacing**: a 4px base scale — 4/8/12/16/20/24/32/40/48/60/64/96px.
+- **Radius**: 4px tags, 8px controls (inputs/buttons), 12px cards, 999px pills.
+- **Shadow**: three tiers — `--shadow-subtle` (fine 1–3px, near-black) for minimal elevation;
+  `--shadow-sm` and `--shadow-elevated` both navy-tinted (`rgba(12,25,39,...)`) multi-layer
+  stacks for cards/floating elements, `--shadow-elevated` being the more pronounced of the two.
+- **Layout**: 1200px max content width, 80px section gaps.
+- **Visual style**: disciplined, minimal chromatic energy, diagrammatic (not lifestyle)
+  imagery — a "financial terminal" feel, not consumer-friendly softness; angular, faceted
+  gradients, no soft glows.
+
+`docs/design/` MUST be consulted before any visual, layout, or component decision not already
+covered by the extracted tokens above.
+
+**Rationale**: A concrete, named design system removes ambiguity that guidance alone leaves
+open, and keeps the application visually coherent with one deliberate identity instead of
+drifting screen-by-screen or defaulting to generic component-library styling. Preferring the
+local implementation over the external write-up means the reference can't disappear or change
+out from under the project, and gives implementers exact values (precise shadow recipes, a
+full type scale, real component markup) that a style-guide summary page couldn't.
 
 ## Ambiguity Resolution
 
@@ -218,4 +251,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 3.6.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-17
+**Version**: 4.2.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-20

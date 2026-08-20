@@ -103,8 +103,7 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
 ## Validate: public shorten form (landing page)
 
 1. While signed out, open `/` → expect the dark-navy hero with the tabbed Short Link/QR Code
-   card (`docs/form_content.png`'s structure), not the previous plain sign-in-only landing
-   page.
+   card, not the previous plain sign-in-only landing page.
 2. While signed out, submit a valid long URL → expect a redirect into Google's sign-in flow
    (no link created yet — confirm nothing appears in `GET /links` for any account as a result
    of this step alone).
@@ -115,6 +114,30 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
    shown, not a silently-discarded submission.
 5. While already signed in, submit the same public-page form → expect immediate creation and
    redirect to the result page, matching `/links/new`'s existing behavior exactly.
+
+## Validate: Increase Design System tokens
+
+1. Open the app in light mode → expect a Fog-canvas (`#edf0f2`) page background with white
+   (`#ffffff`) cards, Inkwell-Navy (`#1a2b3b`) text, and Mint-Signal (`#31f2bf`) buttons/links/
+   focus rings — not the prior teal-green-on-white Stratus palette.
+2. Switch to dark mode → expect an Abyss (`#0d1726`) page background with Inkwell-Navy
+   (`#1a2b3b`) cards, light-neutral text, and the same Mint-Signal accent.
+3. Confirm short codes and aliases (links list, link detail, the create-form preview line)
+   render in a monospace face (JetBrains Mono) — reintroduced in this amendment, distinct from
+   the surrounding Inter body text.
+4. Confirm no "Voltage" yellow (`#e4ff33`) appears anywhere in the UI — it's reserved by the
+   constitution for a full-bleed announcement bar this app doesn't have.
+5. Spot-check card corner radius (~12px) and button/input radius (~8–10px) look visually
+   distinct-but-related, not identical or jarringly mismatched.
+6. Hover a button/link → expect a faint mint-tinted fill (not plain gray) — the corrected
+   `--accent` value (2026-08-20).
+7. Confirm short-code chips (links list, link detail) render in a distinct light-blue
+   (`#7ec4ff`-derived) color, visually separate from the app's mint-colored buttons/links.
+8. Confirm the hero form card's shadow reads as a soft, diffused navy-tinted glow rather than a
+   sharp gray drop-shadow — the corrected `--shadow-elevated` value.
+9. Confirm heading text (page titles, hero headline) has visibly tighter letter-spacing than
+   body text, while small uppercase labels (if any) look slightly *more* spaced out than body
+   text, not tighter — the type scale's tracking direction reverses between headings and labels.
 
 ## Automated tests
 

@@ -316,72 +316,72 @@ still needing genuine new design work for the light scope, which doesn't exist y
 scopes — rejected, abandons the already-shipped, accessibility-verified dark identity and
 skips the constitution's required design-skill consultation.
 
-## Design reference — visual system (supersedes "Light palette" above)
+## Design reference — visual system (supersedes "Light palette" above; superseded by "Design reference — Increase Design System" below)
 
 **Decision (2026-08-17, constitution v3.6.0, `frontend-design` + `ui-ux-pro-max` applied)**:
-The constitution now names two concrete reference images with an explicit division of labor —
-`docs/design.png` governs overall look/feel/color/typography/visual style; `docs/form_content.png`
-governs the top shorten/QR form and overall page content orientation only. This **replaces** the
-prior "Light palette" decision above (which predates the reference images) rather than sitting
-alongside it.
+The constitution named two reference images (since removed from governance — see "Design
+reference — Increase Design System" below) with an explicit division of labor: one governed
+overall look/feel/color/typography/visual style; the other governed the top shorten/QR form
+and overall page content orientation only. This **replaced** the prior "Light palette" decision
+above (which predates the reference images) rather than sitting alongside it.
 
-- **Color** (from `design.png`, a light marketing-site template): white/near-white surfaces,
-  deep-navy headings and primary text, a single teal-green accent for every primary action
-  (buttons, links, focus rings, active nav state), warm neutral grays for secondary text and
-  borders. Expressed as shadcn-svelte's semantic OKLCH tokens: `--background`/`--card` white,
-  `--foreground` deep navy, `--primary` teal-green, `--muted`/`--muted-foreground` warm gray,
-  `--border`/`--input` light gray, `--ring` teal-green. `--radius` is set larger than
+- **Color** (from the color/type reference, a light marketing-site template): white/near-white
+  surfaces, deep-navy headings and primary text, a single teal-green accent for every primary
+  action (buttons, links, focus rings, active nav state), warm neutral grays for secondary text
+  and borders. Expressed as shadcn-svelte's semantic OKLCH tokens: `--background`/`--card`
+  white, `--foreground` deep navy, `--primary` teal-green, `--muted`/`--muted-foreground` warm
+  gray, `--border`/`--input` light gray, `--ring` teal-green. `--radius` is set larger than
   shadcn-svelte's default (pill-shaped buttons, generously rounded cards, matching both
-  references — Stratus's pill CTAs and Bitly's rounded form card are the same structural idea).
-  **Dark scope reconciliation**: `docs/form_content.png`'s hero is itself a deep-navy band —
-  rather than treating that as out-of-scope (it governs structure, not color, per the user's
+  references — their pill CTAs and rounded form card are the same structural idea).
+  **Dark scope reconciliation**: the layout reference's hero is itself a deep-navy band —
+  rather than treating that as out-of-scope (it governed structure, not color, per the user's
   explicit split) or inventing an unrelated dark palette, the `.dark` token scope reuses that
   same navy as `--background`/`--card`, with the identical teal-green `--primary` carried
   across both themes as the one consistent brand accent. This keeps light and dark as one
   coherent identity instead of two unrelated palettes, and both references end up contributing
-  color information after all — `design.png` directly for light, `form_content.png`'s hero
-  incidentally for dark.
-- **Typography** (from `design.png`): a bold, rounded/geometric sans-serif for display
-  headings (concrete pick: `Plus Jakarta Sans`, close in character to what the reference shows
-  and pairs well with the pill/rounded-card visual style) and a clean, highly legible sans for
-  body/UI text (`Inter`). The previous session's monospace-for-short-codes treatment is
-  **dropped**: neither reference renders a short link's code in a code-styled/monospace font —
-  `form_content.png`'s own "URL Shortener" feature card shows `yourbrnd.co/link` in the same
-  plain sans as everything else — so per the constitution's "extend the same visual language"
-  rule for anything not directly shown, short codes/aliases render in the same body sans, not a
-  distinct monospace face.
-- **Structure/orientation** (from `form_content.png`): a full-bleed dark-navy hero band holding
-  the nav, a centered headline, and a floating white card containing a tabbed "Short Link / QR
-  Code" switcher above a URL input and a solid teal-green CTA button — the card overlaps the
-  boundary between the dark hero and the lighter content below it, with a visible drop shadow.
-  Below the hero, content sections sit on a light background with generous whitespace,
-  consistent with `design.png`'s spacing rhythm.
+  color information after all — the color/type reference directly for light, the layout
+  reference's hero incidentally for dark.
+- **Typography** (from the color/type reference): a bold, rounded/geometric sans-serif for
+  display headings (concrete pick: `Plus Jakarta Sans`, close in character to what the
+  reference shows and pairs well with the pill/rounded-card visual style) and a clean, highly
+  legible sans for body/UI text (`Inter`). The previous session's monospace-for-short-codes
+  treatment is **dropped**: neither reference rendered a short link's code in a
+  code-styled/monospace font — the layout reference's own "URL Shortener" feature card showed
+  a short link in the same plain sans as everything else — so per the constitution's "extend
+  the same visual language" rule for anything not directly shown, short codes/aliases render in
+  the same body sans, not a distinct monospace face.
+- **Structure/orientation** (from the layout reference): a full-bleed dark-navy hero band
+  holding the nav, a centered headline, and a floating white card containing a tabbed "Short
+  Link / QR Code" switcher above a URL input and a solid teal-green CTA button — the card
+  overlaps the boundary between the dark hero and the lighter content below it, with a visible
+  drop shadow. Below the hero, content sections sit on a light background with generous
+  whitespace, consistent with the color/type reference's spacing rhythm.
 
-**Rationale**: Honors the user's explicit split (one image for color/type, the other for form
+**Rationale**: Honored the user's explicit split (one image for color/type, the other for form
 structure/orientation) while still producing one coherent system rather than two competing
-ones, by noticing the second reference's hero background is itself unavoidably a color choice
+ones, by noticing the layout reference's hero background was itself unavoidably a color choice
 and using it deliberately for the dark scope instead of ignoring it or picking an arbitrary
 alternative.
 
-**Alternatives considered**: Treat `form_content.png` as pure layout with zero color influence,
-inventing a fully separate dark palette — rejected, more arbitrary than reusing the color the
-second reference already shows, and harder to justify against "extend the same visual
-language." Keep the previous session's dark-terminal/monospace identity and only reskin new
-components — rejected, the constitution's design-reference rule applies to *all* UI, not just
-new work, and the monospace treatment has no basis in either reference.
+**Alternatives considered**: Treat the layout reference as pure layout with zero color
+influence, inventing a fully separate dark palette — rejected, more arbitrary than reusing the
+color the second reference already showed, and harder to justify against "extend the same
+visual language." Keep the previous session's dark-terminal/monospace identity and only reskin
+new components — rejected, the constitution's design-reference rule applied to *all* UI, not
+just new work, and the monospace treatment had no basis in either reference.
 
 ## Design reference — content honesty
 
-**Decision (2026-08-17)**: `form_content.png`'s marketing-site content sections below its hero
-(testimonial quotes, customer-count stats, partner logos, blog-style feature cards) are **not**
-reproduced verbatim — bl8 is a personal link-management tool, not a multi-tenant SaaS product
-with real customers, testimonials, or usage stats to report, and inventing fake ones would be
-fabricated content (`frontend-design`'s guidance: copy is design material, and specific/honest
-beats template-shaped filler). What **is** adopted from that section of the reference is the
-structural pattern — light background, generous whitespace, rounded cards, section rhythm — not
-its specific fabricated content. Below the hero, the landing page instead uses a short, honest
-explanation of what bl8 actually does (create a short link, track clicks, generate a QR code),
-not simulated social proof.
+**Decision (2026-08-17)**: the layout reference's marketing-site content sections below its
+hero (testimonial quotes, customer-count stats, partner logos, blog-style feature cards) were
+**not** reproduced verbatim — bl8 is a personal link-management tool, not a multi-tenant SaaS
+product with real customers, testimonials, or usage stats to report, and inventing fake ones
+would be fabricated content (`frontend-design`'s guidance: copy is design material, and
+specific/honest beats template-shaped filler). What **was** adopted from that section of the
+reference is the structural pattern — light background, generous whitespace, rounded cards,
+section rhythm — not its specific fabricated content. Below the hero, the landing page instead
+uses a short, honest explanation of what bl8 actually does (create a short link, track clicks,
+generate a QR code), not simulated social proof.
 
 **Rationale**: The constitution's design-reference rule governs visual/layout/component
 decisions, not license to fabricate content the app has no basis for; `frontend-design`'s
@@ -394,7 +394,7 @@ numbers — rejected outright as dishonest content, independent of any design co
 ## Public shorten-form: auth gating and continuation
 
 **Decision (2026-08-17, clarified directly with the user)**: The tabbed Short Link/QR Code
-form from `form_content.png`'s hero lives on the **public, unauthenticated landing page**,
+form from the layout reference's hero lives on the **public, unauthenticated landing page**,
 matching the reference. Submitting it does not itself create a link while logged out (FR-001
 is unchanged — no write happens before authentication) but the flow completes the user's
 intent rather than discarding it:
@@ -426,3 +426,136 @@ more machinery than a URL a user is about to make public needs; query parameters
 sufficient and simpler (Principle VI). Blocking the public form entirely behind a "sign in
 first" wall with no data carry-through — rejected, that was explicitly ruled out by the user's
 clarification ("create the link and take user to the result page", not "make them start over").
+
+## Design reference — Increase Design System (supersedes color/typography from "Design reference — visual system" above)
+
+**Decision (2026-08-18, constitution v4.1.0)**: The constitution's prior image-based design
+reference was removed entirely (v4.0.0) and replaced with a single external reference — the
+"Increase Design System" at
+https://styles.refero.design/style/1ad4f49f-275a-4268-8ed1-677dc3c6e475 (an institutional
+fintech/banking design system) — which governs **color, typography, and visual style only**,
+not layout/orientation (unlike the old rule, the new one says nothing about page structure).
+Per Principle VI, the existing structure — the dark hero band with a floating tabbed
+Short-Link/QR-Code form card, the honest "what bl8 does" section, mobile-first responsive
+behavior, the public-shorten-form auth-carry-through flow — is **retained unchanged**; there's
+no constitutional reason to redo working, tested layout just because the color source changed,
+and the new rule doesn't ask for that. Only the token values and type choices below change.
+
+**Color** — mapped from the constitution's extracted hex values into the existing shadcn-svelte
+OKLCH token architecture (`src/routes/layout.css`), replacing the teal-green/navy Stratus-era
+values:
+
+- Light (`:root`): `--background` Fog canvas `#edf0f2`; `--card` Pure White `#ffffff`;
+  `--foreground` / `--card-foreground` Inkwell Navy `#1a2b3b`; `--primary` Mint Signal
+  `#31f2bf` with `--primary-foreground` Abyss `#0d1726` (dark text for contrast on the bright
+  mint); `--secondary` / `--muted` a light neutral `#e1e5e9` with `--muted-foreground`
+  `#687887`; `--border` / `--input` `#bdc2c8`; `--ring` matches `--primary` (`#31f2bf`).
+  `--accent` (hover-state fill) uses the same light neutral as `--muted` rather than a
+  mint-tinted shade — the spec's own "minimal chromatic energy" principle argues against
+  colorful hover states.
+- Dark (`.dark`): `--background` Abyss `#0d1726` (the spec's own "dark surfaces" color);
+  `--card` Inkwell Navy `#1a2b3b` (one tier lighter than the page background, reusing a color
+  already in the palette rather than inventing a new one — the same two-navy-tier structure
+  the prior Bitly-derived dark scope used, so the *pattern* carries over even though the exact
+  hex values don't); `--foreground` / `--card-foreground` the lightest neutral `#e1e5e9`;
+  `--primary` / `--ring` stay Mint Signal `#31f2bf` (unchanged across themes, per the spec);
+  `--primary-foreground` stays Abyss; `--secondary` / `--muted` / `--border` / `--input` the
+  darker neutral `#314352` with `--muted-foreground` `#8995a1`.
+- Voltage (`#e4ff33`) is deliberately **not** wired into any general-purpose token — the
+  constitution reserves it exclusively for a full-bleed announcement bar, which this app has no
+  current use for. It stays undefined until/unless that need arises, rather than being
+  smuggled into `--accent` or similar for lack of a better place.
+- `--destructive` is **not** specified by the source design system (a gap in the spec, not an
+  oversight here) — kept at its existing red value, since delete/error states need *some* color
+  and inventing one from the given palette would be more arbitrary than keeping a standard,
+  already-accessible red.
+
+**Typography** — the constitution names "Untitled Sans" and "Input Mono," both commercial
+typefaces (NAN and Font Bureau respectively) this project has no license for and can't bundle
+via Google Fonts the way `Inter`/`Plus Jakarta Sans` were. The constitution itself anticipates
+exactly this by naming fallbacks: **Inter** (already loaded) for `--font-sans`/`--font-display`,
+and **JetBrains Mono** for `--font-mono`. This also reintroduces monospace styling for short
+codes/aliases — dropped in the Stratus/Bitly-era decision above — since the source spec
+explicitly calls out its mono face for "code/data," and a short code is exactly that; the
+earlier rationale for dropping it (neither old reference used monospace) no longer applies once
+the reference itself changed. Display headings use tight/negative letter-spacing (Tailwind's
+`tracking-tighter`, or an arbitrary `tracking-[-0.05em]` value where that's not tight enough) to
+approximate the spec's extreme negative tracking at display sizes, without chasing its exact
+-5.4px figure pixel-for-pixel.
+
+**Radius** — the design system's 12px card / 8px input-button / 999px pill split is
+approximated through the existing single-`--radius`-token architecture (`--radius-sm/md/lg/xl`
+derived via `calc()`, set up in Phase 8) rather than hand-tuning three separate radius tokens:
+`--radius: 0.75rem` (12px) makes cards land exactly on-spec and derived button/input radii land
+close (~10px vs. the spec's 8px) — an accepted approximation, per Principle VI, rather than
+adding bespoke per-component radius overrides for a 2px difference.
+
+**Shadows** — the spec's "three-layer navy-tinted shadow stack" and "angular, faceted gradient
+blocks (no soft glows)" have no equivalent in shadcn-svelte's default component styles (which
+use neutral-gray shadows); implementing them is deferred to task-level work (a small set of
+Tailwind arbitrary-value shadow utilities using Inkwell-Navy-tinted `rgba()` values, applied to
+`Card` and floating elements like the hero form).
+
+**Rationale**: Reuses the constitution's own extracted tokens directly (no re-deriving from the
+external URL, keeping this grounded in what's actually written into governance) while fitting
+them into the token architecture and component library already built, rather than starting the
+re-skin over. Retaining structure and reintroducing monospace are both direct consequences of
+reading the new rule's actual scope (color/typography/style, not layout) rather than assuming
+"new design reference" means "start from a blank page."
+
+**Alternatives considered**: Re-fetch and re-derive the palette from the live URL each time —
+rejected; the constitution already extracted and pinned the tokens specifically so implementation
+doesn't depend on an external page staying reachable or unchanged. Also restructure the page
+layout to match some assumed "typical fintech" pattern — rejected, the constitution's new rule
+doesn't ask for that, and inventing layout requirements it doesn't state would be scope creep
+beyond what was actually amended.
+
+**Correction (2026-08-20, constitution v4.2.0)**: The constitution's design reference now
+points primarily at a local working implementation, `docs/design/` (`styles.css` is the
+authoritative token source; `index.html` shows real component markup), rather than the
+external style-guide URL. Reading the actual CSS corrects three approximations made above from
+the URL summary alone, and adds one token that summary didn't surface:
+
+- **`--accent` (hover-state fill) was wrong** — `styles.css` defines an explicit
+  `--c-mint-tint: rgba(49, 242, 191, 0.08)` for exactly this purpose. The "minimal chromatic
+  energy" reasoning used above to justify a neutral-gray hover fill doesn't hold: the source
+  system does use a colored (if very subtle) tint, it's just far lighter than the solid mint
+  used for `--primary`. `--accent` is corrected to Mint Signal at 8% opacity;
+  `--accent-foreground` stays Inkwell Navy.
+- **Type scale is now exact, not approximated** — `styles.css` defines the full scale directly:
+  display `clamp(44px, 7vw, 90px)` at `clamp(-2.6px, -0.06em, -5.4px)` letter-spacing; step
+  sizes at 40px/-1.6px, 32px/-1.28px, 24px/-0.96px, 20px/-0.2px; body 16px/-0.16px; small text
+  13px/-0.13px; tiny 10px/-0.1px. These replace the prior "use `tracking-tighter` or an
+  arbitrary `-0.05em` value" approximation with the real `clamp()` expressions, applied
+  directly as arbitrary Tailwind values rather than guessed at. The one exception — eyebrow/
+  label text — uses *positive* tracking (`+0.08em`), not negative; this direction-reversal is
+  itself part of the design system's character (tight display type, open-tracked labels) and
+  wasn't visible from the URL summary at all.
+- **Shadows are now exact, not deferred** — `styles.css` defines three concrete tiers instead
+  of the vague "three-layer navy-tinted stack" description used above: `--shadow-subtle`
+  (`0px 1px 3px rgba(0,0,0,0.1), 0px 1px 2px -1px rgba(0,0,0,0.1)` — near-black, minimal
+  elevation), `--shadow-sm` and `--shadow-elevated` (both genuinely navy-tinted,
+  `rgba(12,25,39,...)`, multi-layer, `--shadow-elevated` the more pronounced of the two, used
+  for the hero's floating form card). These are added as CSS custom properties in
+  `layout.css` (not Tailwind arbitrary values — they're multi-layer and reused enough to
+  warrant a named property) and consumed via `shadow-[var(--shadow-elevated)]` etc.
+- **New: a code-specific accent, `#7ec4ff`** — not present in the URL summary at all. Given
+  this app's short codes are literally "code," and the source system defines this color
+  specifically for that purpose (distinct from the general-purpose Mint Signal action color),
+  it's added as its own token — `--color-code` in the `@theme inline` block — and used for the
+  monospace short-code chip's text color specifically (link list, link detail, the create-form
+  alias preview), giving a visual distinction between "this is an identifier" (blue) and "this
+  is an action" (mint) that the flat single-accent approach above didn't have.
+- Also newly available: the exact 4px-based spacing scale (4/8/12/16/20/24/32/40/48/60/64/96px)
+  and the `--r-tag: 4px` radius tier (for small badges/tags, distinct from the 8px
+  control/12px card tiers already in use) — both used at task-implementation time rather than
+  needing their own research.md entries, since they're direct value lookups, not decisions.
+
+**Rationale**: A local, precise reference is strictly better ground truth than a summarized
+external page — these aren't new design choices, they're corrections to values that were
+approximated or missed when only the URL's prose summary was available.
+
+**Alternatives considered**: Leave the approximations in place since they were "close enough" —
+rejected; the whole point of the constitution pointing at an exact source now is to *not*
+approximate where the real values are available, and the corrections above are small, localized
+token changes, not a rework.

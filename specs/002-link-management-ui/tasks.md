@@ -168,16 +168,16 @@ implemented, tested, and demoed independently.
 ## Phase 8: Design System Foundation (Blocking Prerequisite for Phases 9–10)
 
 **Purpose**: shadcn-svelte adoption, the light/dark token system, and typography per
-constitution v3.6.0's Technology & Architecture Constraints and Frontend Design Workflow
-(`docs/design.png`, `docs/form_content.png`; research.md's "Frontend component library",
-"Light/dark mode", "Design reference — visual system")
+constitution v3.6.0's Technology & Architecture Constraints and Frontend Design Workflow;
+research.md's "Frontend component library", "Light/dark mode", "Design reference — visual
+system"
 
 **⚠️ CRITICAL**: No re-skin work (Phase 9) or public-shorten-form work (Phase 10) can begin
 until this phase is complete
 
 - [X] T051 Run the shadcn-svelte CLI init (`pnpm dlx shadcn-svelte@latest init`) in `ui/`, pointing `components.json`'s `tailwind.css` at the existing `ui/src/routes/layout.css` (no new global CSS file — research.md)
 - [X] T052 [P] Add the `mode-watcher` dependency and mount `<ModeWatcher />` in `ui/src/routes/+layout.svelte` (FR-027; research.md's "Light/dark mode")
-- [X] T053 Define the light (`:root`) and dark (`.dark`) OKLCH token scopes in `ui/src/routes/layout.css` per research.md's "Design reference — visual system": white/navy/teal-green light scope (`docs/design.png`), navy-background dark scope reusing `docs/form_content.png`'s hero color, one teal-green `--primary` shared across both, and an enlarged `--radius` for the pill-button/rounded-card look both references share
+- [X] T053 Define the light (`:root`) and dark (`.dark`) OKLCH token scopes in `ui/src/routes/layout.css` per research.md's "Design reference — visual system": white/navy/teal-green light scope, navy-background dark scope reusing the reference's hero color, one teal-green `--primary` shared across both, and an enlarged `--radius` for the pill-button/rounded-card look both references share
 - [X] T054 [P] Add `Plus Jakarta Sans` (display) and `Inter` (body) font loading in `ui/src/app.html`, replacing the prior monospace-for-short-codes treatment (research.md — neither reference renders codes in a monospace face)
 - [X] T055 Add the shadcn-svelte components needed across the app to `ui/src/lib/components/ui/` (`pnpm dlx shadcn-svelte@latest add button input label field badge card tabs dropdown-menu alert-dialog separator`)
 - [X] T056 Implement `ui/src/lib/components/ModeToggle.svelte`: a `DropdownMenu`-based light/dark/system switcher using `mode-watcher`'s `setMode`/`resetMode` (FR-027)
@@ -227,8 +227,8 @@ immediate-creation behavior to `/links/new`.
 
 ### Implementation for Phase 10
 
-- [X] T066 [US1] Implement `ui/src/lib/components/ShortenForm.svelte`: the tabbed Short Link/QR Code card (shadcn-svelte `Tabs`/`Field`/`Input`/`Button`) matching `docs/form_content.png`'s structure, shared by the landing page (T067) and `/links/new` (T058) (FR-028; research.md)
-- [X] T067 [US1] Rebuild `ui/src/routes/+page.svelte`'s logged-out state: a dark-navy hero band containing `ShortenForm`, followed by an honest explanation of what bl8 does (research.md's "Design reference — content honesty" — no fabricated testimonials/stats/logos), matching `docs/design.png`'s spacing and section rhythm; the logged-in state is unchanged (mobile-first)
+- [X] T066 [US1] Implement `ui/src/lib/components/ShortenForm.svelte`: the tabbed Short Link/QR Code card (shadcn-svelte `Tabs`/`Field`/`Input`/`Button`) matching the design reference's structure, shared by the landing page (T067) and `/links/new` (T058) (FR-028; research.md)
+- [X] T067 [US1] Rebuild `ui/src/routes/+page.svelte`'s logged-out state: a dark-navy hero band containing `ShortenForm`, followed by an honest explanation of what bl8 does (research.md's "Design reference — content honesty" — no fabricated testimonials/stats/logos), matching the design reference's spacing and section rhythm; the logged-in state is unchanged (mobile-first)
 - [X] T068 [US1] `ShortenForm` (T066) submits directly to `/links/new`'s existing `default` action (`ui/src/routes/links/new/+page.server.ts`, T021) — no new route needed. Add a branch there, before the current `error(401, ...)` throw: when no session exists, redirect to Google sign-in with the submitted `url`/`alias`/`expiresAt` carried as `callbackUrl` query parameters targeting `/links/new` (FR-029)
 - [X] T069 [US1] Extend `ui/src/routes/links/new/+page.server.ts`'s `load` to detect carried `url`/`alias`/`expiresAt` query parameters for an authenticated session (arriving via T068's redirect), run T021's creation logic, and redirect to the result page on success or pre-fill the form with validation errors shown on failure (FR-029; contracts/links.md)
 
@@ -243,6 +243,56 @@ immediate-creation behavior to `/links/new`.
 - [X] T070 [P] Verify every restyled/new component from Phases 8–10 at 375px width before confirming wider breakpoints, per constitution's Mobile-first rule
 - [X] T071 Run quickstart.md's "Validate: theme (light/dark/system)" and "Validate: public shorten form" sections end-to-end against a Dockerized dev environment
 - [X] T072 [P] Re-run the accessibility pass (FR-024) across all restyled pages, confirming shadcn-svelte's bits-ui-backed primitives (`AlertDialog`, `Tabs`, `DropdownMenu`) meet keyboard-operability and screen-reader-labeling requirements — extends the original T045
+
+---
+
+## Phase 12: Design Token Corrections (constitution v4.2.0)
+
+**Purpose**: `ui/src/routes/layout.css` already implements the Increase Design System
+correctly (Fog/Mint Signal/Abyss/Inkwell Navy, with real WCAG AA contrast fixes beyond what
+research.md originally specified) — Phases 8–11 evidently already targeted it, not the earlier
+Stratus/Bitly palette. Verified directly against the running code before writing this phase
+(`ui/src/routes/layout.css`, `ui/src/routes/links/**`) rather than assumed. What's actually
+still missing, matched against `docs/design/styles.css` and research.md's "Correction
+(2026-08-20)" entry:
+
+- No `--color-code` token — the design system's dedicated code/data accent (`#7ec4ff`) has
+  never been added, so short codes (already rendered in `font-mono`) have no distinct color.
+- `Badge` uses shadcn's default pill radius (`rounded-4xl`) — the design system defines a
+  separate, smaller `--r-tag: 4px` specifically for tags, and bl8's badges (alias, status) are
+  exactly that.
+- Headings use generic Tailwind scale/tracking (`text-2xl tracking-tight`, etc.) rather than
+  the design system's exact `clamp()`-based sizes and letter-spacing.
+
+Everything else research.md's "Correction" entry describes (mint-tint hover fill, navy-tinted
+multi-layer shadows, Inter/JetBrains Mono fonts, no Voltage yellow anywhere) is **already
+correctly implemented** — confirmed by reading `layout.css` directly, not re-built here.
+
+- [X] T073 Add `--color-code` to `ui/src/routes/layout.css`'s `@theme inline` block and a
+      corresponding `--code` value in both `:root` and `.dark` (code-blue `#7ec4ff`, mapped to
+      OKLCH and contrast-checked against each scope's background — darken for light mode if
+      needed, matching the existing pattern already used for `--ring`/`--muted-foreground`).
+      Apply `text-code` to short-code rendering in `ui/src/routes/links/+page.svelte` (list),
+      `ui/src/routes/links/[code]/+page.svelte` (detail heading), and
+      `ui/src/routes/links/new/+page.svelte` (alias-preview line's code portion, if
+      distinguishable from the alias text itself)
+- [X] T074 [P] Override `Badge`'s radius in `ui/src/lib/components/ui/badge/badge.svelte` from
+      `rounded-4xl` to the design system's tag radius (`rounded-[4px]`), matching
+      `docs/design/styles.css`'s `--r-tag`
+- [X] T075 [P] Tighten the most prominent headings — the landing hero `<h1>`
+      (`ui/src/routes/+page.svelte`), page-level `<h1>`s (`ui/src/routes/links/+page.svelte`
+      and similar), and `Card.Title` section headers — to the design system's exact
+      `clamp()`-based size/letter-spacing values from `docs/design/styles.css` where they
+      currently use approximated Tailwind scale classes; leave smaller/secondary text as-is
+      (Principle VI — not chasing every heading level pixel-for-pixel, per research.md's
+      "Correction" rationale)
+- [X] T076 [P] Verify every changed component from T073–T075 at 375px width before confirming
+      wider breakpoints, per constitution's Mobile-first rule
+- [X] T077 [P] Re-run the accessibility pass (contrast especially) on the new `--color-code`
+      value and the resized headings from T073/T075
+- [X] T078 Run quickstart.md's "Validate: Increase Design System tokens" section (all 9 steps,
+      including the four added for this amendment) end-to-end against a Dockerized dev
+      environment
 
 ---
 
@@ -266,6 +316,9 @@ immediate-creation behavior to `/links/new`.
   creation logic, which T069 reuses); independent of Phase 9 (different files) so could run in
   parallel with it
 - **Design System Polish (Phase 11)**: Depends on Phases 8–10 being complete
+- **Design Token Corrections (Phase 12)**: Depends on Phase 11 being complete (it re-verifies
+  mobile-first/accessibility on top of the corrected tokens); independent of Phases 1–7's
+  behavior — token/component-only changes
 
 ### Within Each User Story
 
@@ -342,6 +395,13 @@ reference images):
 3. Phase 11: Design System Polish — validate mobile-first, theme, and the new public-form flow
 4. **STOP and VALIDATE**: re-run Phases 3–6's existing test suites plus T060/T064/T065/T072 to
    confirm nothing regressed
+
+### Design Token Corrections (Phase 12)
+
+Added after constitution v4.2.0 repointed the design reference at the local `docs/design/`
+implementation. Narrower than the Phase 8–11 amendment above — most of the design system was
+already correctly implemented; this closes the specific gaps found by reading the current code
+directly (T073–T075), then re-validates (T076–T078).
 
 ---
 
