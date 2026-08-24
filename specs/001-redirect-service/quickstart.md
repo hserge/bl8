@@ -97,6 +97,21 @@ for i in $(seq 1 <limit+10>); do curl -s -o /dev/null -w "%{http_code}\n" http:/
 Expected: once the configured global limit is exceeded, subsequent responses in the burst
 return `429` instead of `302`.
 
+## Validate: QR code (User Story 4, moved from `ui/` 2026-08-24)
+
+```bash
+curl -i http://localhost:PORT/hello/qr -o hello-qr.png   # expect 200, Content-Type: image/png
+# decode hello-qr.png with any QR reader — expect it resolves to {PUBLIC_BASE_URL}/hello
+
+curl -i http://localhost:PORT/does-not-exist/qr          # expect 404
+# deactivate/expire a seeded code, then:
+curl -i http://localhost:PORT/<deactivated-code>/qr      # expect 410
+curl -i http://localhost:PORT/<expired-code>/qr           # expect 404
+
+# no ownership/auth check — any requester, no session/credentials needed, succeeds identically
+curl -i http://localhost:PORT/hello/qr                     # still 200, same as above
+```
+
 ## Automated tests
 
 - Contract tests: `go test ./redirect/tests/contract/...` — handler-level, fast, no real

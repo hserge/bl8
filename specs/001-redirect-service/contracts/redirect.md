@@ -40,4 +40,5 @@
   respectively (spec FR-018, FR-020).
 - No partial/fuzzy alias matching, normalization, or redirecting a wrong alias to the correct
   one — mismatch is always a flat 404 (spec FR-021).
-- No other HTTP methods on this path; no other paths exist besides `/health` (spec FR-019).
+- No other HTTP methods on this path; no other paths exist besides `/{code}/qr` (contracts/qr.md)
+  and `/health` (spec FR-019).

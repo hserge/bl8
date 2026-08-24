@@ -60,9 +60,13 @@ cache-aside lookup, without waiting for a cache miss (FR-014).
 
 ## Validate: QR code (User Story 4)
 
-1. Request `/links/{code}/qr` for an owned link → expect an image response; scan it (or decode
-   it programmatically in a test) and confirm it resolves to the link's short URL.
-2. As a second user account, request the same path → expect `403 Forbidden`.
+**Moved (2026-08-24, constitution v6.0.0)**: generation is now `redirect/`'s responsibility —
+see `specs/001-redirect-service/quickstart.md` for the endpoint's own validation steps. `ui/`'s
+part is just linking to it.
+
+1. Open a link's detail page in `ui/` → expect a "QR code" image/link pointing at
+   `redirect/`'s public `{domain}/{code}/qr` (via `buildQrImageUrl`), not a local route.
+2. Confirm `ui/` no longer serves `/links/{code}/qr` itself (removed).
 
 ## Validate: rate limiting on creation
 
@@ -102,13 +106,15 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
 
 ## Validate: public shorten form (landing page)
 
-1. While signed out, open `/` → expect the dark-navy hero with the tabbed Short Link/QR Code
-   card, not the previous plain sign-in-only landing page.
+1. While signed out, open `/` → expect the light-background hero with the flat (non-tabbed)
+   Long URL + Custom back-half form, per `docs/design/` (constitution v5.0.0) — not the prior
+   dark-navy hero or the tabbed Short Link/QR Code switcher.
 2. While signed out, submit a valid long URL → expect a redirect into Google's sign-in flow
    (no link created yet — confirm nothing appears in `GET /links` for any account as a result
    of this step alone).
 3. Complete sign-in from step 2 → expect to land directly on the new link's detail/result
-   page, with no need to re-enter the URL.
+   page, with no need to re-enter the URL, and confirm a QR code is available there (QR is no
+   longer a hero-form mode — see the structural-rebuild validation section below).
 4. Repeat step 2 with a URL that fails validation (e.g. malformed) → after completing
    sign-in, expect to land on `/links/new` with the URL pre-filled and the validation error
    shown, not a silently-discarded submission.
@@ -125,8 +131,8 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
 3. Confirm short codes and aliases (links list, link detail, the create-form preview line)
    render in a monospace face (JetBrains Mono) — reintroduced in this amendment, distinct from
    the surrounding Inter body text.
-4. Confirm no "Voltage" yellow (`#e4ff33`) appears anywhere in the UI — it's reserved by the
-   constitution for a full-bleed announcement bar this app doesn't have.
+4. Confirm "Voltage" yellow (`#e4ff33`) appears *only* in the full-bleed announcement bar at
+   the very top of the landing page (constitution v5.0.0) — nowhere else in the UI.
 5. Spot-check card corner radius (~12px) and button/input radius (~8–10px) look visually
    distinct-but-related, not identical or jarringly mismatched.
 6. Hover a button/link → expect a faint mint-tinted fill (not plain gray) — the corrected
@@ -138,6 +144,31 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
 9. Confirm heading text (page titles, hero headline) has visibly tighter letter-spacing than
    body text, while small uppercase labels (if any) look slightly *more* spaced out than body
    text, not tighter — the type scale's tracking direction reverses between headings and labels.
+
+## Validate: landing page structural rebuild (constitution v5.0.0)
+
+1. Open `/` while signed out and confirm, top to bottom: a full-bleed Voltage announcement bar
+   with truthful copy; a light-background hero with a navy headline and eyebrow label (not the
+   prior dark-navy/white-text hero); a nav listing `Features` / `How it works` / `FAQ` / `Status`
+   plus `Sign in with Google` / `Get started`; the flat two-field shorten form; a three-card
+   feature grid (short links, click tracking, QR codes — bl8's real features, not the
+   reference's six); a numbered `01`/`02`/`03` how-it-works section; an FAQ section with
+   bl8-accurate answers (including that links only expire if an expiration was set); a final CTA
+   band with one primary button; and a minimal footer (logo/copyright + a `Status` link).
+2. Confirm the sections the reference has but bl8 intentionally omits are **absent**, not
+   present with placeholder content: the usage-stats bar (2.4M links/etc.), the trust-logo wall,
+   and the "For developers"/API section.
+3. At 375px width, confirm the announcement bar, nav (collapsed/toggle as needed), hero, and
+   form are all fully usable with no horizontal scroll (mobile-first rule still applies to the
+   rebuilt sections).
+4. At a desktop width, confirm the shorten form renders its two fields side by side (Long URL +
+   Custom back-half), matching the reference's multi-column layout — not stacked, the way the
+   mobile layout stacks them.
+5. Click each nav anchor (`Features`, `How it works`, `FAQ`) and confirm it scrolls to the
+   matching section; click `Get started` and confirm it scrolls to the shorten form.
+6. Create a link from the public form (or as a signed-in user from `/links/new`) and confirm its
+   detail page renders a QR code — since the hero form no longer has a QR-mode tab, this is the
+   only place QR generation is exposed, and it must still work end-to-end (User Story 4).
 
 ## Automated tests
 

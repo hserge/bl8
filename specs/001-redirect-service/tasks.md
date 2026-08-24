@@ -146,6 +146,40 @@ reported `"unreachable"`, the other still `"ok"`).
 
 ---
 
+## Phase 7: User Story 4 - Get a scannable QR code for a short link (Priority: P4)
+
+**Goal**: `GET /{code}/qr` returns a PNG QR code for any active, unexpired link — moved here
+from `ui/` (constitution v6.0.0, user request "move qr code generation to redirector").
+
+**Independent Test**: Request the QR route for an active code, confirm the returned image
+decodes to that code's short URL; confirm the same 404/410 rules as the redirect route apply;
+confirm no ownership/auth check exists.
+
+- [X] T031 [P] [US4] Extract `lookupLink(ctx, cache, store, code)` as a package-level function
+      in `redirect/internal/handler/redirect.go` (previously the `*Redirect.lookup` method),
+      so both `Redirect` and the new `QR` handler share one cache-aside implementation
+- [X] T032 [US4] Add `PublicBaseURL` to `redirect/internal/config/config.go`
+      (env `PUBLIC_BASE_URL`, default `https://bl8.us`) — the scheme+host a QR code encodes
+- [X] T033 [US4] Add `github.com/skip2/go-qrcode` to `redirect/go.mod`
+- [X] T034 [US4] Implement `redirect/internal/handler/qr.go`: `QR` handler reusing
+      `lookupLink` and the redirect handler's active/expiry precedence (410 deactivated before
+      404 expired), rate-limited via the same shared limiter, encoding
+      `{PublicBaseURL}/{code}` as a 512×512 PNG via `qrcode.Encode`, `Content-Type: image/png`,
+      no alias check and no ownership/auth check (FR-022; contracts/qr.md)
+- [X] T035 [US4] Register `GET /{code}/qr` on the mux in `redirect/cmd/redirect/main.go`,
+      wiring the same cache/store/limiter instances as the redirect handler; document why the
+      literal `qr` segment safely takes precedence over the sibling `/{code}/{alias}` wildcard
+- [X] T036 [P] [US4] Contract tests for `GET /{code}/qr` (200+valid PNG, 404 not-found, 410
+      deactivated, 404 expired, 429 rate-limited, 503 both-deps-unreachable) using fakes, in
+      `redirect/tests/contract/qr_test.go`
+- [X] T037 [P] [US4] Contract test confirming the literal `/{code}/qr` route wins over the
+      `/{code}/{alias}` wildcard at the mux level, in `redirect/tests/contract/mux_test.go`
+
+**Checkpoint**: All four user stories (including the moved QR one) are independently
+functional; `go build ./...`, `go vet ./...`, and `go test ./tests/contract/...` pass.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

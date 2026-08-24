@@ -55,6 +55,27 @@ fixes: an actual mint-tint hover fill (not neutral gray, as previously guessed),
 scale and shadow recipes (not approximated), and a new code-specific accent color (`#7ec4ff`)
 applied to short-code chips. All localized token-level corrections — no structural changes.
 
+**Amendment (2026-08-21, v5)**: Constitution v5.0.0 widens the "Design reference" rule to also
+require matching `docs/design/`'s layout, composition, and structural patterns, not just
+tokens — triggered by a direct visual comparison (via `playwright-cli`) confirming the live app
+and the reference were structurally unalike despite correct token application: inverted hero
+(dark/white vs. the reference's light/navy), no announcement bar, a different nav, a
+tabbed/stacked form vs. the reference's flat two-column one, and several sections (how-it-works,
+API/dev, stats, trust logos) the app lacked entirely. This is a genuine structural rebuild, not
+a token correction — see research.md's new "Design reference — structural rebuild (constitution
+v5.0.0)" for the section-by-section adoption/omission decisions (adopt structure, replace
+fabricated content with truthful bl8-specific content, or omit the section where no truthful
+content exists) and the one user-resolved judgment call (dropping the hero's Short Link/QR Code
+tabs to match the reference's flat form; QR remains available on the link detail page).
+
+**Amendment (2026-08-24, v6)**: Constitution v6.0.0 moves QR *generation* out of `ui/` entirely,
+to a new `GET /{code}/qr` endpoint on `redirect/` (Principle II widened from "exactly two
+logical endpoints" to "exactly three"). `ui/`'s User Story 4 narrows to just linking/embedding
+that endpoint on the link detail page — no server route, no `qrcode` dependency, no ownership
+check (the moved endpoint is public, matching `GET /{code}` itself). See research.md's "QR code
+generation" → "Moved (2026-08-24...)" entry and `specs/001-redirect-service/` for the
+`redirect/`-side implementation.
+
 ## Technical Context
 
 **Language/Version**: TypeScript, SvelteKit (Svelte 5) on Node.js 22 LTS. Package manager:
@@ -63,8 +84,8 @@ applied to short-code chips. All localized token-level corrections — no struct
 **Primary Dependencies**: `@auth/sveltekit` with the Google provider (OAuth login, session
 cookies, CSRF handling); `drizzle-orm` + `drizzle-kit`, on the `postgres` (porsager) driver
 (typed Postgres access and migrations — this app owns the schema, so typed migrations are
-directly useful, not speculative); `ioredis` (Redis write-through client); `qrcode`
-(server-side QR code generation); `tailwindcss` + `@tailwindcss/vite` (styling — resolved
+directly useful, not speculative); `ioredis` (Redis write-through client);
+`tailwindcss` + `@tailwindcss/vite` (styling — resolved
 2026-08-17, see research.md); `shadcn-svelte` (CLI-scaffolded components) + `bits-ui`
 (headless primitives it wraps) + `@lucide/svelte` (icon set) — frontend component library,
 constitution-mandated (resolved 2026-08-17, see research.md); `mode-watcher` — light/dark/
@@ -114,7 +135,7 @@ and QR generation is scoped to the authenticated owner
 | Principle | Status | Notes |
 |---|---|---|
 | I. Independent, Non-Overlapping Components | PASS | This plan touches only `ui/`; deploys independently (`adapter-node`, own Docker image) from `redirect/`; the two share only the Postgres and Redis instances, not code or a network API between them. |
-| II. Redirect Is a Minimal Read-Path Service | N/A here | Enforced by the redirect plan, not this one; this plan doesn't touch `redirect/`. |
+| II. Redirect Is a Minimal Read-Path Service | N/A here (see Amendment v6 above) | Enforced by the redirect plan, not this one. This plan's only touchpoint is removing `ui/`'s QR route now that generation lives on `redirect/`'s new `GET /{code}/qr` — the endpoint itself is `specs/001-redirect-service`'s to satisfy. |
 | III. Cache-Aside Reads, Postgres as Source of Truth | PASS | `ui/` writes to Postgres first (source of truth) and write-throughs to Redis in the same operation on create/update/delete — this is exactly the write side of the pattern the constitution assigns to `ui/`. `ui/` never depends on Redis for correctness (it never reads from Redis). |
 | IV. Non-Blocking Click Recording | N/A here | Click recording is `redirect/`'s responsibility; `ui/` only reads/aggregates click data for analytics, never records clicks. |
 | V. UI Owns Writes and Business Logic | PASS | All write paths (create/update/delete), URL validation, unsafe-URL rejection, alias formatting, auth, and creation/update-route rate limiting live here, matching the constitution exactly. |
@@ -128,7 +149,7 @@ and QR generation is scoped to the authenticated owner
 | Technology & Architecture Constraints — Frontend component library | PASS (this plan) | This plan is precisely the shadcn-svelte migration the constraint requires — see "Frontend component library" in research.md. |
 | Frontend Design Workflow | PASS (this plan) | The `frontend-design` and `ui-ux-pro-max` skills are used to design the light palette (research.md's "Light palette") before implementation, and MUST continue to be used for any further UI work on this feature. |
 | Ambiguity Resolution | PASS (this plan) | The dark-mode requirement ("default to system") was genuinely ambiguous between a system-only theme and a manual toggle defaulting to system; resolved via an explicit clarifying question rather than assumed — see research.md's "Light/dark mode". Whether the public shorten form should live behind a login wall or on the public page was also ambiguous given FR-001; resolved by asking directly — see research.md's "Public shorten-form: auth gating and continuation". |
-| Frontend Design Workflow — Design reference | PASS (this plan) | The prior image-based design-reference rule was removed in constitution v4.0.0 and replaced in v4.1.0 by the "Increase Design System" URL; v4.2.0 repointed it at the local `docs/design/` implementation, read directly (not just its earlier prose summary) before drafting research.md's "Correction (2026-08-20)" entry. The new rule scopes only color/typography/visual style (not layout), so existing structure is knowingly retained rather than re-derived — a deliberate reading of the rule's actual scope, not an oversight. |
+| Frontend Design Workflow — Design reference | IN PROGRESS (this plan) | The prior image-based design-reference rule was removed in constitution v4.0.0 and replaced in v4.1.0 by the "Increase Design System" URL; v4.2.0 repointed it at the local `docs/design/` implementation; v5.0.0 (2026-08-21) widened the rule to also require matching `docs/design/`'s layout/structure, not just tokens. This is a genuine structural rebuild — see research.md's "Design reference — structural rebuild (constitution v5.0.0)" for the section-by-section plan. Status is IN PROGRESS, not PASS, until Phase 2 tasks implement the rebuild (`/speckit-tasks` → `/speckit-implement`). |
 
 No violations. Complexity Tracking table is empty and omitted below.
 
@@ -163,6 +184,17 @@ shadow/type-scale values, the new code-accent color) are refinements to the same
 change. quickstart.md's existing token-validation section gains a few more specific checks
 rather than a new section. All principles and constitution sections still PASS.
 
+**Re-check after the 2026-08-21 amendment (v5)**: unlike every prior design-reference amendment,
+this one is structural, touching the landing page's markup and component composition
+(`+page.svelte`, `ShortenForm.svelte`, `Header.svelte`) — not just `layout.css` tokens. Still no
+new entities, write paths, or interface contracts: the QR-generation endpoint, creation/update/
+delete actions, and analytics reads are all unchanged; only their presentation on the landing
+page changes (QR moves from a hero-form tab to the existing link-detail page, which already
+renders it). quickstart.md gains a new validation section for the rebuilt landing page's
+sections (hero, announcement bar, nav, features, how-it-works, FAQ, footer). All seven
+Core Principles still PASS unaffected; the Frontend Design Workflow — Design reference row above
+moves from PASS to IN PROGRESS pending `/speckit-tasks` → `/speckit-implement`.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -195,11 +227,12 @@ ui/
 │   │   │   └── [code]/
 │   │   │       ├── +page.svelte                  # edit/detail view (User Story 2)
 │   │   │       ├── +page.server.ts                 # actions: update, delete (ownership-checked)
-│   │   │       ├── analytics/
-│   │   │       │   ├── +page.svelte                  # report view (User Story 3)
-│   │   │       │   └── +page.server.ts                 # load: click counts over time + referrers
-│   │   │       └── qr/
-│   │   │           └── +server.ts                       # GET: QR image for the link (User Story 4)
+│   │   │       └── analytics/
+│   │   │           ├── +page.svelte                  # report view (User Story 3)
+│   │   │           └── +page.server.ts                 # load: click counts over time + referrers
+│   │   │       # No qr/ route (User Story 4): generation moved to redirect/'s GET /{code}/qr
+│   │   │       # (constitution v6.0.0). This page just links to that endpoint — see
+│   │   │       # lib/shortUrl.ts's buildQrImageUrl().
 │   │   ├── health/
 │   │   │   └── +server.ts                     # GET: JSON liveness check for infra probes (Postgres reachability)
 │   │   ├── status/
@@ -224,13 +257,16 @@ ui/
 │   │   │   ├── ui/                               # shadcn-svelte generated components (button, input, badge,
 │   │   │   │                                        # card, tabs, dropdown-menu, field, alert-dialog, ...) —
 │   │   │   │                                        # resolved 2026-08-17, added via CLI as pages migrate
-│   │   │   ├── Header.svelte                     # app nav bar, composed from shadcn-svelte primitives
+│   │   │   ├── Header.svelte                     # app nav bar — Features/How it works/FAQ/Status anchors
+│   │   │                                        # + Sign in with Google/Get started (v5.0.0 rebuild)
 │   │   │   ├── ModeToggle.svelte                    # light/dark/system switcher (mode-watcher)
-│   │   │   └── ShortenForm.svelte                     # tabbed Short Link/QR Code hero card — structure
-│   │   │                                                # retained from the prior design reference (Principle
-│   │   │                                                # VI; the current constitution rule governs color/type
-│   │   │                                                # only, not layout), shared by the public landing page
-│   │   │                                                # and /links/new
+│   │   │   ├── AnnounceBar.svelte                     # full-bleed Voltage announcement bar (v5.0.0)
+│   │   │   └── ShortenForm.svelte                     # flat Long URL + Custom back-half hero form
+│   │   │                                                # (v5.0.0 — QR/Short-Link tabs removed, see
+│   │   │                                                # research.md's "Design reference — structural
+│   │   │                                                # rebuild"; QR stays available on the link detail
+│   │   │                                                # page), shared by the public landing page and
+│   │   │                                                # /links/new
 │   │   └── utils.ts                                # shadcn-svelte's cn() class-merge helper (CLI-generated)
 │   └── app.d.ts
 ├── components.json                          # shadcn-svelte CLI config — resolved 2026-08-17

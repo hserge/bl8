@@ -1,19 +1,39 @@
 <!--
 Sync Impact Report
-Version change: 4.1.0 → 4.2.0
-Modified principles: none
+Version change: 5.0.0 → 6.0.0
+Modified principles: II. Redirect Is a Minimal Read-Path Service — redefined
 Added sections: none
-Changed sections:
-  - Frontend Design Workflow — "Design reference": now points primarily at the local working
-    implementation `docs/design/` (styles.css is the authoritative token source; index.html
-    shows real component markup) rather than the external style-guide URL, which is kept only
-    as background/provenance. The extracted-token fallback list is replaced with a fuller,
-    more precise set pulled directly from styles.css: exact type scale (display down to small
-    text, with sizes and letter-spacing), the 4px spacing scale, all radius tiers, the
-    three-tier shadow system with real values, mint-tint hover fill, and a code-specific accent
-    color (#7ec4ff) not previously captured.
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (6.0.0, 2026-08-24):
+  - II. Redirect Is a Minimal Read-Path Service: `redirect/`'s guaranteed surface widens from
+    "exactly two logical endpoints" to "exactly three" — a new `GET /{code}/qr` PNG endpoint,
+    moved here from `ui/` at the user's explicit request ("move qr code generation to
+    redirector"). MAJOR because it redefines the principle's core guarantee, which prior
+    amendments treated as inviolable ("MUST NOT gain... any feature request... belongs in ui/
+    instead"). Admitted as a narrowly-bounded exception (reuses the exact same lookup and
+    active/expiry rules as the redirect route, no new business logic, no auth) rather than
+    loosening the principle generally. A real behavior change rides along: QR generation drops
+    the ownership/auth check `ui/`'s prior implementation had, since `redirect/` performs no
+    authentication by rule (Principle II) and the encoded URL is already public/unauthenticated
+    via the redirect route itself — judged a forced, non-optional consequence of the move
+    rather than a separate risk decision.
+
+Changed sections (5.0.0, 2026-08-21):
+  - Frontend Design Workflow — "Design reference": scope widened from color/typography/visual
+    style only to also require matching layout, composition, and structural patterns from
+    `docs/design/` — page/section composition (e.g. a light-background hero with dark-navy
+    text, not an inverted dark hero), primary navigation structure, the full-bleed Voltage
+    announcement bar, section-level patterns (feature grid, numbered how-it-works steps,
+    developer/API section), and multi-column component layout at wider viewports. MAJOR because
+    it redefines what "compliant" means: implementations that were compliant under the prior
+    tokens-only reading (e.g. the app's dark-hero/no-announcement-bar landing page, adopted
+    specifically because layout was out of scope) are no longer compliant and require rework. A
+    new carve-out is added: where the reference's own markup carries fabricated or placeholder
+    content (social-proof numbers, sample copy), the STRUCTURE must be adopted but the CONTENT
+    must be replaced with the application's true, current information, or the section omitted
+    if no truthful equivalent exists.
 -->
 
 # URL Shortener Constitution
@@ -33,20 +53,36 @@ and release on its own schedule, unconstrained by the slower-moving, feature-hea
 
 ### II. Redirect Is a Minimal Read-Path Service
 
-`redirect/` exposes exactly two logical endpoints: the redirect lookup — `GET /{code}`, and
-optionally `GET /{code}/{alias}` when the code has a registered SEO alias — and `GET /health`.
-It MUST NOT gain create, update, delete, or list endpoints, authentication, or request
-validation beyond looking up the code, with exactly one narrow exception: when a second path
-segment is present, it MUST be checked for exact equality against the looked-up record's
-registered alias (a field already fetched as part of the same lookup), returning 404 on
-mismatch. This is an equality check on data already in hand, not general request validation,
-and MUST NOT grow into anything more — no partial matching, normalization, or alias-specific
-business logic. It is stateless and MUST be safe to run as many identical, horizontally scaled
-instances with no shared in-process state. Any feature request that would add write behavior,
-business logic, or auth to `redirect/` belongs in `ui/` instead.
+`redirect/` exposes exactly three logical endpoints: the redirect lookup — `GET /{code}`, and
+optionally `GET /{code}/{alias}` when the code has a registered SEO alias; a QR-code image for
+the same code — `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL;
+and `GET /health`. It MUST NOT gain create, update, delete, or list endpoints, authentication,
+or request validation beyond looking up the code, with exactly two narrow exceptions: (1) when
+a second path segment is present on the redirect route and isn't the literal `qr`, it MUST be
+checked for exact equality against the looked-up record's registered alias (a field already
+fetched as part of the same lookup), returning 404 on mismatch; (2) the QR endpoint MUST reuse
+that same lookup and its active/expiry status rules unchanged (404 missing/expired, 410
+deactivated) rather than adding any QR-specific business logic, and MUST NOT perform an
+ownership or authentication check — the URL it encodes is exactly the same already-public,
+unauthenticated string the redirect lookup itself resolves, so there is no additional secret to
+gate. Neither exception is general request validation, and neither MUST grow into anything
+more — no partial matching, normalization, alias-specific business logic, or QR customization
+(size, format, styling) beyond the fixed PNG this rule specifies. It is stateless and MUST be
+safe to run as many identical, horizontally scaled instances with no shared in-process state.
+Any feature request that would add write behavior, business logic, or auth to `redirect/`
+belongs in `ui/` instead.
 
 **Rationale**: A tiny, fixed surface area is what makes the redirect path fast, cheap to
-scale, and easy to reason about under load; every added responsibility erodes that.
+scale, and easy to reason about under load; every added responsibility erodes that. QR
+generation is admitted as a narrow, explicitly-bounded exception rather than a precedent for
+future endpoints: it's a pure, stateless derivation of data this service already looks up (no
+write, no new authorization model, no per-request business decision beyond the same status
+checks the redirect route already makes), and serving it from the same public domain the
+encoded URL itself points to is more correct than generating it from a different, authenticated
+admin service. Moving it out of `ui/` also means `ui/` no longer needs a legitimate reason to
+serve a public, unauthenticated image endpoint — QR generation's own real security posture (no
+secret exists to protect once you have the code) is now enforced by design, not by an
+ownership check that only ever guarded already-public information.
 
 ### III. Cache-Aside Reads, Postgres as Source of Truth
 
@@ -179,12 +215,38 @@ viewport, and prevents desktop-first designs that degrade or break when scaled d
 
 **Design reference**: All UI/UX design and implementation MUST match the "Increase Design
 System" as implemented at `docs/design/` (a working HTML/CSS/JS reference build —
-`styles.css` is the authoritative token source; `index.html` shows real component markup).
-This local implementation is the primary reference, taking precedence over the design system's
-public write-up at https://styles.refero.design/style/1ad4f49f-275a-4268-8ed1-677dc3c6e475
-(kept only as background/provenance) since it is more precise and cannot go unreachable. The
-following tokens, extracted from `docs/design/styles.css`, are the source of truth if that file
-is ever unavailable:
+`styles.css` is the authoritative token source; `index.html` shows real component markup and
+layout structure). This local implementation is the primary reference, taking precedence over
+the design system's public write-up at
+https://styles.refero.design/style/1ad4f49f-275a-4268-8ed1-677dc3c6e475 (kept only as
+background/provenance) since it is more precise and cannot go unreachable.
+
+This rule covers not only color, typography, and visual style (tokens below) but also layout,
+composition, and structural patterns shown in `docs/design/index.html`:
+
+- **Page/section composition**: a landing hero MUST use `docs/design/index.html`'s light
+  background with dark-navy headline text — not an inverted dark-background/white-text
+  treatment.
+- **Primary navigation**: structure (a horizontal nav listing the site's main sections plus
+  sign-in/primary-CTA actions) MUST follow the reference's pattern, adapted to this
+  application's actual sections and actions rather than copied verbatim.
+- **Announcement bar**: a full-bleed Voltage-colored announcement bar MUST be present at the
+  top of the page, per the reference — Voltage remains reserved exclusively for this use (see
+  the color token below).
+- **Section-level patterns**: a feature grid, a numbered how-it-works sequence, and a
+  developer/API section (where the application has API functionality to show) MUST follow the
+  reference's structural patterns.
+- **Component layout**: forms and similar wide components MUST use the reference's
+  multi-column layout at viewports where the width allows, subject to the mobile-first rule
+  above (which still governs the small-viewport, single-column structure).
+- **Fabricated or placeholder content**: where `docs/design/index.html` pairs a structural
+  pattern with fabricated or placeholder content (social-proof numbers, sample copy, invented
+  claims), the STRUCTURE MUST be adopted but the CONTENT MUST be replaced with the
+  application's own true, current information — or the section omitted entirely if no
+  truthful equivalent exists. Copying fabricated claims verbatim is never acceptable.
+
+The following tokens, extracted from `docs/design/styles.css`, are the source of truth if that
+file is ever unavailable:
 
 - **Color**: `#1a2b3b` Inkwell Navy (primary text); `#edf0f2` Fog / `#ffffff` White
   (backgrounds); `#31f2bf` Mint Signal (primary accent) with `rgba(49,242,191,0.08)` as its
@@ -209,14 +271,18 @@ is ever unavailable:
   gradients, no soft glows.
 
 `docs/design/` MUST be consulted before any visual, layout, or component decision not already
-covered by the extracted tokens above.
+covered by the extracted tokens and structural patterns above.
 
 **Rationale**: A concrete, named design system removes ambiguity that guidance alone leaves
 open, and keeps the application visually coherent with one deliberate identity instead of
 drifting screen-by-screen or defaulting to generic component-library styling. Preferring the
 local implementation over the external write-up means the reference can't disappear or change
 out from under the project, and gives implementers exact values (precise shadow recipes, a
-full type scale, real component markup) that a style-guide summary page couldn't.
+full type scale, real component markup) that a style-guide summary page couldn't. Extending the
+rule to layout and structure, not just tokens, closes the gap where a page could apply every
+color and type value correctly and still read as an unrelated design because its composition,
+navigation, and section patterns diverged from the reference — colors and type alone don't
+carry a design's identity, structure does too.
 
 ## Ambiguity Resolution
 
@@ -251,4 +317,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 4.2.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-20
+**Version**: 6.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-24

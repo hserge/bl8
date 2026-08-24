@@ -32,6 +32,10 @@
 - Q: When a link is deleted, should its click-event history be retained (orphaned), or deleted with it? → A: Deleted with it — via a database foreign key `ON DELETE CASCADE` from `click_events.code` to `links.code`. Captured as FR-022.
 - Q: Should custom aliases replace the code (as originally specced) and be unique, or become a separate, non-unique SEO decoration? → A: Separate SEO decoration. The code is always system-generated and globally unique (the sole lookup key, unchanged); an alias is an optional, non-unique value tied 1:1 to one code, appended after it (`/{code}/{alias}`). `redirect/` checks the supplied alias for exact equality against the code's registered alias, 404 on any mismatch (including when no alias is registered). This redefines FR-003 and FR-007, and requires a matching change in `redirect/`'s spec (see `specs/001-redirect-service/spec.md` FR-020/FR-021).
 
+### Session 2026-08-24
+
+- Q: Should QR code generation move from `ui/` to `redirect/`? → A: Yes. `redirect/` gains a third endpoint, `GET /{code}/qr` (constitution v6.0.0 — Principle II widened from "exactly two logical endpoints" to "exactly three", admitted as a narrowly-bounded exception). Forced consequence: the endpoint has no ownership/auth check, since `redirect/` performs no authentication by rule and the encoded URL is already public via the redirect route itself. Captured as an update to FR-001/FR-012 and User Story 4's Acceptance Scenarios; see `specs/002-link-management-ui/contracts/qr.md` and `specs/001-redirect-service/` for the new contract.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Create a short link (Priority: P1)
@@ -136,15 +140,20 @@ physical media.
 **Why this priority**: A convenient, self-contained add-on with no dependency from the other
 stories, and the lowest-impact if delayed.
 
+**Moved (2026-08-24, constitution v6.0.0)**: QR *generation* itself is now `redirect/`'s
+responsibility (`GET /{code}/qr` — specs/001-redirect-service), not `ui/`'s — see FR-012 below.
+`ui/`'s role in this story is now just linking/embedding that endpoint on the link detail page.
+Acceptance Scenario 2 (ownership rejection) no longer applies: the moved endpoint has no
+ownership check, since it encodes exactly the same already-public URL the redirect endpoint
+itself resolves (see FR-012).
+
 **Independent Test**: Can be fully tested by requesting a QR code for an existing link and
 confirming it decodes to that link's short URL.
 
 **Acceptance Scenarios**:
 
-1. **Given** a logged-in user who owns a link, **When** they request a QR code for it,
-   **Then** they receive a QR code that, when scanned, resolves to that link's short URL.
-2. **Given** a logged-in user, **When** they request a QR code for a link they do not own,
-   **Then** the attempt is rejected.
+1. **Given** any user, logged in or not, **When** they request a QR code for an active link's
+   code, **Then** they receive a QR code that, when scanned, resolves to that link's short URL.
 
 ---
 
@@ -195,9 +204,10 @@ confirming it decodes to that link's short URL.
 ### Functional Requirements
 
 - **FR-001**: The system MUST allow a user to log in, and MUST NOT allow link creation,
-  update, deletion, analytics viewing, or QR code generation without being logged in. (A
-  public, unauthenticated entry point may accept the *start* of a create request — see
-  FR-028/FR-029 — but the creation itself never happens until the user is authenticated.)
+  update, deletion, or analytics viewing without being logged in. (A public, unauthenticated
+  entry point may accept the *start* of a create request — see FR-028/FR-029 — but the creation
+  itself never happens until the user is authenticated. QR code generation is exempt — see
+  FR-012, moved to `redirect/` as a public endpoint in constitution v6.0.0.)
 - **FR-002**: The system MUST allow a logged-in user to create a short link by supplying a
   long destination URL.
 - **FR-003**: The system MUST allow a user, when creating or later updating a link, to
@@ -225,10 +235,14 @@ confirming it decodes to that link's short URL.
   analytics for links owned by another user.
 - **FR-011**: The system MUST display, for each of a user's links, click analytics comprising
   click counts broken down over time and by referrer.
-- **FR-012**: The system MUST allow a user to generate a QR code for any link they own, which
-  resolves to that link's short URL when scanned. The QR code MUST be returned as a PNG image
-  at a fixed resolution of at least 512×512 pixels, so it can be printed or embedded in other
-  documents without pixelation.
+- **FR-012**: The system MUST make a QR code available for any active link, which resolves to
+  that link's short URL when scanned, as a PNG image at a fixed resolution of at least
+  512×512 pixels, so it can be printed or embedded in other documents without pixelation.
+  **Moved (2026-08-24, constitution v6.0.0)**: generation itself is `redirect/`'s
+  responsibility (`GET /{code}/qr`, specs/001-redirect-service), not `ui/`'s — a public,
+  unauthenticated endpoint with no ownership check, since it encodes exactly the same
+  already-public URL the redirect endpoint itself resolves. `ui/` only links/embeds it (link
+  detail page).
 - **FR-013**: On every create, update, or delete of a link, the system MUST write the change
   to Postgres as the durable source of truth.
 - **FR-014**: On every create, update, or delete of a link, the system MUST also write the

@@ -8,6 +8,12 @@
 
 **Input**: User description: "Build the redirect service (redirect/). It has exactly two routes: GET /{code}, which looks up the short code, redirects to the associated long URL, and records a click event; and GET /health, which reports whether the service can reach Redis and Postgres. On a redirect request, check Redis first. On a cache miss, look up the code in Postgres, serve the redirect, and write the mapping back into Redis so subsequent requests hit the cache. If the code doesn't exist in either Redis or Postgres, or the link has expired, return 404. It has global, hardcoded rate limiter. Link also can be deactivated which will return 410. Click recording must never block or slow down the redirect response. This service has no create, update, delete, or list endpoints, no authentication, and no request validation beyond looking up the code."
 
+## Clarifications
+
+### Session 2026-08-24
+
+- Q: Should QR code generation move here from `ui/`? → A: Yes — a third route, `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL. Reuses the exact same lookup and active/expiry rules as the redirect route (FR-005–FR-008); no ownership or auth check, since this service performs no authentication by rule (FR-017) and the encoded URL is already public via `GET /{code}` itself. Captured as FR-022, and FR-019 is updated from "no routes other than redirect and health" to include this third route. See `.specify/memory/constitution.md` v6.0.0.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Follow a short link to its destination (Priority: P1)
@@ -92,6 +98,35 @@ unreachable (expect the response to reflect that specific dependency as unreacha
 
 ---
 
+### User Story 4 - Get a scannable QR code for a short link (Priority: P4)
+
+Anyone with a short code — not just its owner — wants a QR code that resolves to the same
+destination the short link itself would, for use in print or physical media. **Moved here
+2026-08-24** from `ui/`'s original implementation, per constitution v6.0.0 (Session 2026-08-24
+clarification above).
+
+**Why this priority**: A convenient, self-contained add-on with no dependency from the other
+stories, same as it was when `ui/` owned it.
+
+**Independent Test**: Can be fully tested by requesting the QR route for an active code and
+confirming the returned image decodes to that code's short URL; and by confirming the same
+active/expiry rules as the redirect route apply (missing/expired → 404, deactivated → 410).
+
+**Acceptance Scenarios**:
+
+1. **Given** an active, unexpired code, **When** its QR route is requested, **Then** a PNG
+   image is returned that, when scanned, resolves to that code's short URL.
+2. **Given** a code that doesn't exist or has expired, **When** its QR route is requested,
+   **Then** the response is 404 — the same status the redirect route itself would give.
+3. **Given** a deactivated code, **When** its QR route is requested, **Then** the response is
+   410 — the same status the redirect route itself would give.
+4. **Given** any requester, regardless of whether they created or own the underlying link,
+   **When** they request the QR route for a code they know, **Then** the request succeeds —
+   there is no ownership or authentication check, matching this service's no-auth rule (FR-017)
+   and the fact that the encoded URL is already public via `GET /{code}`.
+
+---
+
 ### Edge Cases
 
 - What happens when both the cache and durable storage are unreachable at redirect time? The
@@ -155,7 +190,7 @@ unreachable (expect the response to reflect that specific dependency as unreacha
 - **FR-018**: The service MUST NOT perform request validation beyond looking up the supplied
   code (no format, schema, or content validation of the code or any other input).
 - **FR-019**: The service MUST expose no routes other than the redirect route (with or without
-  a trailing SEO-alias segment, per FR-020/FR-021) and the health route.
+  a trailing SEO-alias segment, per FR-020/FR-021), the QR route (FR-022), and the health route.
 - **FR-020**: The service MUST also accept an optional second path segment on the redirect
   route (`GET /{code}/{alias}`) representing an SEO alias. When present, the service MUST
   compare it for exact equality against the looked-up link's registered alias (already fetched
@@ -163,6 +198,11 @@ unreachable (expect the response to reflect that specific dependency as unreacha
 - **FR-021**: When the supplied alias does not exactly match the code's registered alias — or
   the code has no registered alias at all — the service MUST report the link as not found
   (404), the same as an unrecognized code (spec.md Edge Cases).
+- **FR-022**: The service MUST provide a route, `GET /{code}/qr`, that returns a PNG image
+  (at least 512×512px) encoding the code's canonical short URL, applying the exact same
+  lookup and active/expiry status rules as the redirect route (FR-002–FR-008) — not a separate
+  set of business logic — and performing no ownership or authentication check (moved from
+  `ui/`, constitution v6.0.0; Session 2026-08-24 clarification above).
 
 ### Key Entities
 

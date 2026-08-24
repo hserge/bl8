@@ -134,6 +134,12 @@ implemented, tested, and demoed independently.
 
 **Independent Test**: Request the QR route for an owned link, confirm the returned image decodes to that link's short URL; confirm a second account is rejected from requesting it.
 
+**Superseded (2026-08-24, constitution v6.0.0)**: T037–T039 below describe `ui/`'s original,
+now-removed implementation (`GET /links/{code}/qr`, ownership-checked). QR generation moved to
+`redirect/`'s `GET /{code}/qr` (public, no ownership check) — see Phase 14 below for the
+removal/repoint work on the `ui/` side, and `specs/001-redirect-service/tasks.md` for the new
+endpoint's own tasks. Left `[X]` here as a record of what was originally built, not what's live.
+
 ### Tests for User Story 4
 
 - [X] T037 [P] [US4] Server-route test for `GET /links/{code}/qr` covering FR-012, FR-010 (image returned and decodes to the short URL, non-owner rejected, not-found for a deleted code) in `ui/tests/server/links-qr.test.ts`
@@ -144,6 +150,32 @@ implemented, tested, and demoed independently.
 - [X] T039 [US4] Implement `ui/src/routes/links/[code]/qr/+server.ts`: ownership check, generate a PNG QR image at least 512×512px (via `qrcode`) encoding the link's short URL, return with `Content-Type: image/png` (FR-012; contracts/qr.md)
 
 **Checkpoint**: All four user stories are independently functional.
+
+---
+
+## Phase 14: QR Generation Moved to redirect/ (constitution v6.0.0)
+
+**Purpose**: Move QR generation off `ui/` per the user's explicit request ("move qr code
+generation to redirector") and constitution v6.0.0's Principle II amendment. `ui/` keeps only a
+thin link/embed to `redirect/`'s new public endpoint. See research.md's "QR code generation" →
+"Moved (2026-08-24...)" entry for the full rationale, including why the ownership check is
+dropped (forced by `redirect/`'s no-auth rule, not a separate risk decision).
+
+- [X] T092 Remove `ui/src/routes/links/[code]/qr/+server.ts` and its tests
+      (`ui/tests/server/links-qr.test.ts`, `ui/tests/e2e/qr-code.spec.ts`)
+- [X] T093 [P] Add `buildQrImageUrl(code)` to `ui/src/lib/shortUrl.ts`, pointing at
+      `redirect/`'s public `{domain}/{code}/qr`
+- [X] T094 Update `ui/src/routes/links/[code]/+page.svelte`'s QR image/link and "QR code" nav
+      button to use `buildQrImageUrl` (external link, `target="_blank"`) instead of the removed
+      local route
+- [X] T095 [P] Remove the now-unused `qrcode`, `@types/qrcode`, `jsqr`, `pngjs`, `@types/pngjs`
+      packages from `ui/package.json` and reinstall to update the lockfile
+- [X] T096 Update `ui/tests/unit/aliasFormat.test.ts` — no reserved-word test needed (`"qr"` was
+      already impossible as an alias under the existing 3-char minimum; documented via a
+      comment in `aliasFormat.ts` instead of new validation logic)
+
+**Checkpoint**: `pnpm run check` and `pnpm run build` pass with no references to the removed
+route; `redirect/`'s own Phase (specs/001-redirect-service/tasks.md) covers the new endpoint.
 
 ---
 
@@ -296,6 +328,77 @@ correctly implemented** — confirmed by reading `layout.css` directly, not re-b
 
 ---
 
+## Phase 13: Landing Page Structural Rebuild (constitution v5.0.0)
+
+**Purpose**: Constitution v5.0.0 widened "Design reference" from tokens-only to also cover
+layout/structure. A direct visual comparison (`playwright-cli`) confirmed the live landing page
+and `docs/design/index.html` were structurally unalike despite correct token application —
+inverted hero, missing announcement bar, different nav, tabbed vs. flat form, and several
+sections the app lacked entirely. See research.md's "Design reference — structural rebuild
+(constitution v5.0.0)" for the section-by-section adopt/replace/omit decisions this phase
+implements. Scoped to the landing page (`/`) and its shared components (`Header.svelte`,
+`ShortenForm.svelte`) — no changes to `/links/**`, auth, or any write path.
+
+- [X] T079 [P] Create `ui/src/lib/components/AnnounceBar.svelte`: full-bleed Voltage
+      (`bg-[#e4ff33]` or an equivalent token) bar, single line, non-dismissible, copy "Every
+      link includes click tracking and a QR code, automatically." — truthful, evergreen
+      (research.md: no fabricated "news" to announce). Mount at the very top of
+      `ui/src/routes/+layout.svelte`, above `Header.svelte`.
+- [X] T080 Rebuild `ui/src/lib/components/Header.svelte`'s nav: replace the current nav-item set
+      with anchor links to `#features` / `#how` / `#faq` plus the existing `/status` route, and
+      nav actions `Sign in with Google` (ghost, existing OAuth trigger unchanged) / `Get started`
+      (primary, anchor-scrolls to `#tool`). Collapse to a menu toggle below the existing mobile
+      breakpoint, matching `docs/design/`'s `.nav-toggle` pattern — verify at 375px first
+      (mobile-first).
+- [X] T081 Rewrite `ui/src/lib/components/ShortenForm.svelte`: remove the `Short Link`/`QR Code`
+      tab switcher entirely; replace with a flat form (Long URL required + Custom back-half
+      optional, `bl8.us/` prefix shown per the alias field, matching `docs/design/`'s
+      `.field-row` pattern) that stacks at 375px and lays out as two columns + submit button at
+      desktop widths (`sm:`/`md:` breakpoint). Submit behavior (validation, auth-gated creation,
+      carry-through query params per research.md's "Public shorten-form" decision) is unchanged
+      — this is a layout-only rewrite of the same form fields plus one field removed (the QR/
+      Short-Link mode toggle), not new logic.
+- [X] T082 [US4] Confirm `ui/src/routes/links/[code]/+page.svelte` (the link detail page) still
+      renders/links its QR code clearly, since T081 removes the only other place QR generation
+      was surfaced pre-creation — add a brief "QR code" heading/section there if the existing
+      presentation assumed the hero form's QR tab as the primary discovery path
+- [X] T083 Rebuild the hero section of `ui/src/routes/+page.svelte`: light background
+      (`--background`/Fog, not the fixed dark-Abyss override), navy headline text, an eyebrow
+      label above the headline (e.g. "URL Shortener"), matching `docs/design/`'s `.hero`
+      composition. Remove the dark-hero-specific decorative facet SVGs (`hero-facet-a/b/c`) —
+      they were built for the inverted dark treatment being removed. Mount the rewritten
+      `ShortenForm` (T081) below/overlapping the hero per the reference's `.tool-card` overlap
+      pattern.
+- [X] T084 [P] Add a `#features` section to `ui/src/routes/+page.svelte`: restructure the
+      existing "What bl8 does" content into `docs/design/`'s icon-badge/3-column grid pattern
+      with an eyebrow + heading + subheading section head — keep bl8's real three features
+      (short links, click tracking, QR codes), not padded to match the reference's six
+- [X] T085 [P] Add a `#how` "How it works" section to `ui/src/routes/+page.svelte`: numbered
+      `01`/`02`/`03` steps (paste URL → optionally customize → share and track), matching
+      `docs/design/`'s `.steps` pattern, with bl8-accurate copy
+- [X] T086 [P] Add a `#faq` section to `ui/src/routes/+page.svelte` with bl8-specific, truthful
+      answers per research.md ("Do short links expire?" / "Can I change where a link points?")
+      — omit any question with no truthful answer (e.g. pricing)
+- [X] T087 Add a final CTA band to `ui/src/routes/+page.svelte`: heading + subheading + a single
+      primary button ("Shorten a link", anchor-scrolls to `#tool`) — no secondary ghost button,
+      since the reference's second action links to API docs bl8 doesn't have
+- [X] T088 Create a minimal `ui/src/lib/components/Footer.svelte` (logo + short tagline +
+      copyright + a link to `/status`, the one real cross-cutting link that exists today) and
+      mount it in `ui/src/routes/+layout.svelte` below the page content — not the reference's
+      4-column Product/Resources/Company grid, most of which has no bl8 equivalent
+- [X] T089 Verify every section touched by T079–T088 at 375px width before confirming wider
+      breakpoints (constitution: Mobile-first)
+- [X] T090 Re-run an accessibility pass on the rebuilt landing page: announcement bar as a
+      `role="banner"`-adjacent but non-obstructive region, nav landmark and anchor-link focus
+      order, heading hierarchy across the new sections (one `h1`, `h2`s per section), contrast
+      on the light hero's navy-on-Fog text
+- [X] T091 Run quickstart.md's new "Validate: landing page structural rebuild (constitution
+      v5.0.0)" section end-to-end against a Dockerized dev environment, plus a re-run of the
+      existing "Validate: public shorten form" section (both updated for the flat-form/QR-on-
+      detail-page changes) and User Story 4's existing QR test to confirm nothing regressed
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -319,6 +422,11 @@ correctly implemented** — confirmed by reading `layout.css` directly, not re-b
 - **Design Token Corrections (Phase 12)**: Depends on Phase 11 being complete (it re-verifies
   mobile-first/accessibility on top of the corrected tokens); independent of Phases 1–7's
   behavior — token/component-only changes
+- **Landing Page Structural Rebuild (Phase 13)**: Depends on Phase 12 being complete (T073's
+  `--color-code` token and T074's badge radius are used by the rebuilt sections); depends on
+  User Story 4 (Phase 6) for the QR-code route T082 confirms; independent of Phases 3–5's
+  business logic (no write-path or auth changes) and of `/links/**` pages other than the QR
+  check in T082
 
 ### Within Each User Story
 
@@ -339,6 +447,13 @@ correctly implemented** — confirmed by reading `layout.css` directly, not re-b
 - Within Phase 9: T058/T061/T062/T063 in parallel (different files); T059 is standalone (its own file, not shared with T058/T061); T060 depends on T059 (same behavior, different file — a test following its implementation)
 - Within Phase 10: T064/T065 (tests) in parallel; T066 before T067–T069 (they render/use it); T068/T069 depend on T066
 - Phase 9 and Phase 10 can run fully in parallel with each other once Phase 8 is done (disjoint files, except both read the Phase 8 token system)
+- Within Phase 13: T079 (new file) in parallel with everything; T080/T081 touch different files
+  and can run in parallel with each other, but T083 (hero) depends on T081 (`ShortenForm`)
+  existing in its new flat form before it's mounted; T084/T085/T086 are parallel (all add
+  disjoint sections to the same `+page.svelte`, but each is a self-contained `<section>` insert
+  — coordinate to avoid a merge conflict rather than treating them as fully independent files);
+  T087/T088 come after the sections they close out; T089/T090/T091 are sequential validation
+  passes at the end
 
 ---
 
@@ -402,6 +517,22 @@ Added after constitution v4.2.0 repointed the design reference at the local `doc
 implementation. Narrower than the Phase 8–11 amendment above — most of the design system was
 already correctly implemented; this closes the specific gaps found by reading the current code
 directly (T073–T075), then re-validates (T076–T078).
+
+### Landing Page Structural Rebuild (Phase 13)
+
+Added after constitution v5.0.0 widened the design reference from tokens-only to also cover
+layout/structure, triggered by a direct visual comparison confirming the app and
+`docs/design/index.html` were structurally unalike. Unlike Phase 12 (a token-only correction),
+this is a real rebuild of the landing page's markup and component composition:
+
+1. T079–T081: build the new shared pieces (announcement bar, nav, flat form) first
+2. T082: confirm QR generation's new-only discovery path (the link detail page) still works,
+   since T081 removes the hero form's QR tab
+3. T083: rebuild the hero around the new form
+4. T084–T088: add/adapt the remaining sections (features, how-it-works, FAQ, final CTA, footer)
+5. T089–T091: mobile-first re-verification, accessibility pass, full quickstart re-run
+6. **STOP and VALIDATE**: re-run quickstart.md's "Validate: public shorten form" and User Story
+   4's QR test to confirm the flat-form rewrite and QR relocation didn't regress either flow
 
 ---
 

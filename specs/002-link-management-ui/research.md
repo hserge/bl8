@@ -150,6 +150,21 @@ chosen over SVG for universal print/embedding compatibility (Clarifications 2026
 the short URL construction (`bl8.us`, per the constitution's domain-separation rule) in one
 place and lets the QR image be linked/cached/downloaded directly.
 
+**Moved (2026-08-24, constitution v6.0.0)**: Generation itself relocates to `redirect/`
+(`GET /{code}/qr`, Go, `github.com/skip2/go-qrcode`) — see
+`specs/001-redirect-service/research.md`'s own QR entry for that side's decision. `ui/` no
+longer has a QR route at all: the `qrcode`/`@types/qrcode`/`jsqr`/`@types/pngjs`/`pngjs` npm
+packages, `src/routes/links/[code]/qr/+server.ts`, and its tests
+(`tests/server/links-qr.test.ts`, `tests/e2e/qr-code.spec.ts`) are removed. `ui/`'s link detail
+page now just links to/embeds `redirect/`'s public endpoint via a new
+`src/lib/shortUrl.ts:buildQrImageUrl(code)` helper (`{domain}/{code}/qr`) — no alias variant,
+matching what was actually built here before the move (the decision text above described an
+unbuilt alias branch; the real `qr/+server.ts` only ever encoded `https://bl8.us/{code}`, and
+the new `redirect/` endpoint preserves that same code-only behavior, not the aspirational one).
+The prior ownership/auth check (401/403) is gone, since `redirect/` performs no authentication
+by rule and the encoded URL is already public via the redirect route itself — see
+`.specify/memory/constitution.md` v6.0.0's Principle II rationale.
+
 ## Testing strategy
 
 **Decision**: Vitest for unit tests (`urlSafety`, alias-format validation, rate-limit key
@@ -559,3 +574,107 @@ approximated or missed when only the URL's prose summary was available.
 rejected; the whole point of the constitution pointing at an exact source now is to *not*
 approximate where the real values are available, and the corrections above are small, localized
 token changes, not a rework.
+
+## Design reference — structural rebuild (constitution v5.0.0, supersedes the "existing structure retained" conclusion in "Design reference — Increase Design System" above)
+
+**Decision (2026-08-21)**: Constitution v5.0.0 widened the "Design reference" rule from
+color/typography/visual-style only to also cover layout, composition, and structural patterns
+from `docs/design/index.html`. A direct visual comparison (via the `playwright-cli` skill,
+screenshotting the live app against a local static server for `docs/design/`) confirmed the
+user's observation that the two were "completely different" at the structural level even though
+token application was already correct — inverted hero (dark/white vs. the reference's
+light/navy), an entirely different nav, no announcement bar, a stacked/tabbed form vs. the
+reference's flat two-column one, and whole sections (how-it-works, stats, trust logos, API/dev)
+the app didn't have at all. This entry supersedes the "retained unchanged" structural decision
+above and the "Design reference — content honesty" entry's narrower scope (which only addressed
+the marketing sections below the old hero, not the hero/nav/form themselves).
+
+Read directly from `docs/design/index.html` (not just the earlier screenshots), section by
+section, applying the constitution's new carve-out — adopt structure, replace or omit fabricated
+content:
+
+- **Hero**: adopt the light-background/navy-headline composition, the eyebrow label above the
+  headline, and the flat (non-tabbed) two-field form (Long URL + optional Custom back-half)
+  directly below/overlapping the hero, matching `docs/design/`'s `.hero`/`.tool-card`
+  structure. **Drop the `Short Link`/`QR Code` tab switcher** (resolved via AskUserQuestion,
+  2026-08-21, "Match reference exactly"): QR generation remains a real, already-shipped
+  capability (`[code]/qr/+server.ts`, User Story 4), it just moves out of the hero's creation
+  step and continues to be available on the created link's detail page, matching how the
+  reference itself treats QR as a features-grid item, not a hero-form mode.
+  **Omit the avatar stack + "Trusted by teams shortening 2.4M+ links a month" trust line** —
+  fabricated social proof, no truthful equivalent (bl8 has no aggregate cross-user usage
+  numbers to report).
+- **Announcement bar**: the constitution now requires a full-bleed Voltage-colored bar be
+  present per the reference's structural pattern, but its specific copy ("Now supporting custom
+  back-halves and bulk import") describes features bl8 doesn't have. Rather than inventing fake
+  "news," the bar's copy is set to a true, evergreen statement of already-shipped functionality
+  — "Every link includes click tracking and a QR code, automatically." — satisfying the
+  structural requirement (the bar itself, its full-bleed Voltage treatment, its position above
+  the header) without fabricating a change that didn't happen. Non-dismissible, single line,
+  matching the reference's own markup (no close control there either).
+- **Primary navigation**: adopt the structural pattern (horizontal list of section anchors +
+  sign-in/primary-CTA actions) with bl8's actual sections, not the reference's literal list:
+  `Features` / `How it works` / `FAQ` (the reference's `API` link is dropped — see below) plus
+  the pre-existing `Status` page (FR-025), which has no equivalent slot in the reference but is
+  real, shipped, and worth keeping discoverable — added as a fourth nav item rather than
+  dropped, since omitting a real feature to match the reference's item *count* would be
+  cargo-culting the pattern past the point the rule asks for. Nav actions become `Sign in with
+  Google` (ghost button, existing OAuth flow, unchanged) and `Get started` (primary button,
+  anchor-scrolls to the hero form) — adapted 1:1 from the reference's `Sign in`/`Get started`
+  slots.
+- **Stats bar** (`2.4M` links/month, `140ms` median redirect, `99.99%` uptime, `180+`
+  countries): **omitted entirely** — no truthful equivalent exists; bl8 has no cross-user
+  aggregate analytics capability in scope (per-link analytics only, FR-011), and inventing
+  platform-wide numbers would be fabricated content regardless of design considerations (same
+  reasoning as "Design reference — content honesty" above, now applied to this section too).
+- **Features grid**: adopt the 3-column icon-badge card structural pattern, but keep bl8's
+  actual three features (short links, click tracking, QR codes — the existing "What bl8 does"
+  content) rather than padding to the reference's six cards with features bl8 doesn't have
+  (branded domains, UTM builder, REST API). Three real cards in the reference's grid/badge
+  style, not six card-shaped placeholders.
+- **How it works**: adopt the numbered three-step structural pattern (`01`/`02`/`03`, heading,
+  one-sentence description per step) with truthful copy describing bl8's actual flow: paste a
+  URL, optionally set a custom alias, share and track — this is a real sequence (order carries
+  information: validation happens before customization happens before the link is live), so the
+  numbered-step device is appropriate here, not decorative.
+- **"For developers" / API section**: **omitted entirely** — bl8 has no public REST API in
+  scope (plan.md: `ui/`'s server routes are internal, not a documented external interface); a
+  section showing `curl -X POST https://api.short.hn/v1/links` for an API that doesn't exist
+  would be actively false, not just unpolished.
+- **Trust/logo wall** ("Trusted by product and marketing teams at NORTHWIND, ATLAS CO, ..."):
+  **omitted entirely** — fabricated company names, no truthful equivalent.
+- **FAQ**: adopt the section pattern with truthful, bl8-specific answers (the reference's own
+  answers don't transfer as-is — e.g. its "links never expire" contradicts bl8's actual
+  optional-expiration feature): "Do short links expire?" → only if you set an expiration when
+  creating one; otherwise they stay live indefinitely. "Can I change where a link points?" →
+  yes, update the destination any time without changing the short code. "Is there a cost?" →
+  bl8 is a personal tool with no plans or billing — omitted rather than answered, since there's
+  nothing truthful to say that isn't just "not applicable."
+- **Final CTA**: adopt the pattern (heading + subheading + primary action, centered, full-width
+  band) but with a single primary button ("Shorten a link", anchor-scrolls to the hero form)
+  instead of the reference's primary+ghost pair — the ghost button linked to API docs that don't
+  exist in bl8's scope, so it's dropped rather than repointed at something unrelated.
+- **Footer**: adopt the overall footer band placement, but not the reference's 4-column
+  Product/Resources/Company link grid — most of those (`Pricing`, `Docs`, `About`, `Careers`)
+  are placeholder `#` anchors in the reference itself and have no bl8 equivalent at all. Replaced
+  with a minimal footer: logo/copyright line plus the one real cross-cutting link that exists
+  today (`Status`). Padding out four columns of dead links to match the reference's *shape*
+  would be worse than a simpler, fully-functional footer — the constitution's carve-out is about
+  preserving real structure, not manufacturing placeholder content to fill it.
+
+**Rationale**: The constitution's new carve-out ("adopt structure, replace or omit fabricated
+content") is the operative rule for every section above — none of these are visual-taste calls,
+each follows directly from asking "does bl8 actually have this, truthfully, right now?" for the
+specific content the reference's structural pattern was built to hold. Where the answer is yes
+(features, how-it-works, FAQ), the pattern is adopted with real content. Where the answer is no
+with no equivalent (stats, trust logos, API section, most footer links), the section is omitted
+rather than faked. The hero form's mode (flat vs. tabbed) was the one genuine judgment call with
+two reasonable answers — resolved directly with the user rather than assumed, per the
+Ambiguity Resolution principle.
+
+**Alternatives considered**: Reproduce every reference section with bl8-flavored placeholder
+copy (e.g. invented usage stats, a stubbed "API coming soon" section) — rejected, this is
+exactly the fabricated-content pattern the constitution's carve-out and `frontend-design`'s
+writing guidance both rule out; a placeholder is still a lie about present capability. Keep the
+tabbed hero form and treat the flat-form pattern as inapplicable to bl8 — rejected per the
+user's explicit resolution favoring the reference's exact structure.

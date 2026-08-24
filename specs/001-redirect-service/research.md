@@ -182,3 +182,42 @@ tables `ui/` already created, acting on the data it finds there. Confirmed direc
 user 2026-08-17 (previously phrased as "`ui/` or a shared migration mechanism" — that
 ambiguity is resolved: it's `ui/`, unconditionally). This is carried into data-model.md, not
 re-litigated here.
+
+## QR code generation (2026-08-24, constitution v6.0.0)
+
+**Decision**: `github.com/skip2/go-qrcode` — `qrcode.Encode(baseURL+"/"+code, qrcode.Medium,
+512)` — in a new `internal/handler/qr.go`, registered as `GET /{code}/qr`. Shares the redirect
+handler's cache-aside lookup, extracted into a package-level `lookupLink(ctx, cache, store,
+code)` function (previously a `*Redirect` method) now that a second concrete caller exists
+(Principle VI: extraction needs a real second use, not speculation — this is that use). Applies
+the same active/expiry precedence as the redirect handler (410 deactivated before 404 expired)
+but no alias check (the QR route has no `{alias}` segment) and no ownership/auth check. The
+base URL it encodes comes from a new `PUBLIC_BASE_URL` config value (default `https://bl8.us`),
+not a hardcoded string, per the constitution's "no hardcoded tunables" rule — `ui/`'s prior
+implementation hardcoded `bl8.us` directly, which was fine for a single-environment npm script
+but not for a service meant to run identically across local/staging/prod.
+
+**Mux precedence**: Go 1.22+'s `net/http.ServeMux` prefers a more-specific (literal) pattern
+over a less-specific (wildcard) one at the same position, regardless of registration order, so
+`GET /{code}/qr` is never shadowed by the sibling `GET /{code}/{alias}` — verified in
+`tests/contract/mux_test.go`'s `TestMux_RoutesCodeAndAlias`. No collision with a real alias is
+possible either way: `ui/`'s alias format rule requires at least 3 characters, and `"qr"` is
+only 2 — it was already an impossible alias value before this route existed, so no reserved-word
+list was added on the `ui/` side (would have been dead code).
+
+**Rationale**: Reusing the exact lookup/status logic means a QR image can only ever be served
+for a link that would actually redirect right now — there's no separate "does this code exist"
+decision to keep in sync with the redirect handler's. Dropping ownership/auth (a real behavior
+change from `ui/`'s prior implementation) is not a new risk: this service performs no
+authentication by rule (FR-017), and the URL a QR code encodes is exactly the same
+already-public string `GET /{code}` itself resolves — an owner-only check on the encoding was
+never protecting a secret, since the underlying redirect was already reachable by anyone with
+the code.
+
+**Alternatives considered**: A separate lookup implementation for QR (not sharing
+`lookupLink`) — rejected, would duplicate the cache-aside logic and risk the two handlers
+drifting on 404/410 semantics over time. Keeping QR generation in `ui/` and having `redirect/`
+merely validate the code exists — rejected; the user's request was to move generation itself,
+and splitting "does it exist" (redirect/) from "render the image" (ui/) would need a network
+call between two components the constitution says must share nothing but Postgres/Redis
+(Principle I).
