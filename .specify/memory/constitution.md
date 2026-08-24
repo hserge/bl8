@@ -1,10 +1,35 @@
 <!--
 Sync Impact Report
-Version change: 5.0.0 → 6.0.0
-Modified principles: II. Redirect Is a Minimal Read-Path Service — redefined
+Version change: 7.0.0 → 8.0.0
+Modified principles: II. Redirect Is a Minimal Read-Path Service — redefined again
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (8.0.0, 2026-08-24):
+  - II. Redirect Is a Minimal Read-Path Service: replaces the single `?style=` closed-enum
+    exception from v7.0.0 with three independent parameters — `dots` and `corners` remain
+    small closed enums (shape is discrete), but `bg` now accepts *any* well-formed hex color,
+    unenumerated. MAJOR because v7.0.0's own text explicitly forbade this ("no arbitrary
+    colors... an enum-equality check against that set, not free-form customization"); this
+    amendment directly reverses that specific prohibition for color while keeping it intact for
+    shape. Foreground/ink color is deliberately NOT made a second free parameter — it's derived
+    algorithmically from whichever background is chosen, so the one open axis can't produce an
+    unreadable combination. Triggered by the user asking for dots/corners/background to each be
+    independently styleable, with background accepting an arbitrary hex value — a strictly
+    larger ask than v7.0.0's closed-preset system covered.
+
+Changed sections (7.0.0, 2026-08-24):
+  - II. Redirect Is a Minimal Read-Path Service: adds a third narrow exception — the QR
+    endpoint MAY accept `?style=` selecting from a small, fixed, closed set of preset visual
+    styles (enum-equality, not free-form customization). MAJOR because v6.0.0's own text
+    explicitly forbade this ("no... QR customization (size, format, styling) beyond the fixed
+    PNG this rule specifies"); this amendment directly reverses that specific prohibition, so
+    it's a redefinition, not an addition alongside an unchanged rule. Triggered by the user
+    asking for "a fancier qr generator which can generate by preset style" — clarified via
+    AskUserQuestion to mean a picker across multiple selectable presets (not one fixed fancier
+    default), which is exactly the kind of caller-visible customization v6.0.0 ruled out and
+    therefore required this amendment rather than just an implementation change.
 
 Changed sections (6.0.0, 2026-08-24):
   - II. Redirect Is a Minimal Read-Path Service: `redirect/`'s guaranteed surface widens from
@@ -57,7 +82,7 @@ and release on its own schedule, unconstrained by the slower-moving, feature-hea
 optionally `GET /{code}/{alias}` when the code has a registered SEO alias; a QR-code image for
 the same code — `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL;
 and `GET /health`. It MUST NOT gain create, update, delete, or list endpoints, authentication,
-or request validation beyond looking up the code, with exactly two narrow exceptions: (1) when
+or request validation beyond looking up the code, with exactly three narrow exceptions: (1) when
 a second path segment is present on the redirect route and isn't the literal `qr`, it MUST be
 checked for exact equality against the looked-up record's registered alias (a field already
 fetched as part of the same lookup), returning 404 on mismatch; (2) the QR endpoint MUST reuse
@@ -65,10 +90,22 @@ that same lookup and its active/expiry status rules unchanged (404 missing/expir
 deactivated) rather than adding any QR-specific business logic, and MUST NOT perform an
 ownership or authentication check — the URL it encodes is exactly the same already-public,
 unauthenticated string the redirect lookup itself resolves, so there is no additional secret to
-gate. Neither exception is general request validation, and neither MUST grow into anything
-more — no partial matching, normalization, alias-specific business logic, or QR customization
-(size, format, styling) beyond the fixed PNG this rule specifies. It is stateless and MUST be
-safe to run as many identical, horizontally scaled instances with no shared in-process state.
+gate; (3) the QR endpoint MAY accept a small set of rendering parameters, each bounded in its
+own way rather than freely combinable into arbitrary customization: `dots` and `corners` each
+select from a small, fixed, closed enum of shape names (documented alongside the handler) —
+enum-equality checks, not free-form shape customization — while `bg` accepts any well-formed
+hex color value, unenumerated, since color is a continuous space where enumerating "allowed"
+values would be meaningless; the only bound on `bg` is format validity, not membership in a
+fixed set. Foreground/ink color is never a caller-supplied parameter at all — it MUST be
+derived algorithmically from the chosen background (e.g. a contrast/luminance rule), so an
+arbitrary background can never be paired with an unreadable foreground. Every one of these
+parameters, valid or not, MUST silently fall back to its default (never a request error),
+since they are cosmetic, not validated, inputs — an unrecognized shape name or malformed hex
+string is simply treated as absent. Neither this nor the other two exceptions is general
+request validation, and none MUST grow into anything more — no partial matching, normalization,
+alias-specific business logic, logo embedding, arbitrary sizing, or any QR parameter beyond
+`dots`/`corners`/`bg` as specified here. It is stateless and MUST be safe to run as many
+identical, horizontally scaled instances with no shared in-process state.
 Any feature request that would add write behavior, business logic, or auth to `redirect/`
 belongs in `ui/` instead.
 
@@ -82,7 +119,15 @@ encoded URL itself points to is more correct than generating it from a different
 admin service. Moving it out of `ui/` also means `ui/` no longer needs a legitimate reason to
 serve a public, unauthenticated image endpoint — QR generation's own real security posture (no
 secret exists to protect once you have the code) is now enforced by design, not by an
-ownership check that only ever guarded already-public information.
+ownership check that only ever guarded already-public information. The `dots`/`corners`/`bg`
+exception draws its boundary differently for shape versus color, deliberately: shape is a small,
+genuinely discrete design choice (there are only so many reasonable module/marker shapes), so
+enumerating it is natural and keeps the surface predictable; color is not discrete — there is no
+finite "reasonable" set of hex values — so bounding it by format instead of membership is the
+honest version of the same narrow-exception principle, not a loophole. Auto-deriving foreground
+from background (rather than accepting it as a second free color) keeps the one truly open
+parameter from being able to produce something unreadable, which is the actual risk an
+unbounded customization surface would otherwise pose.
 
 ### III. Cache-Aside Reads, Postgres as Source of Truth
 
@@ -317,4 +362,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 6.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-24
+**Version**: 8.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-24

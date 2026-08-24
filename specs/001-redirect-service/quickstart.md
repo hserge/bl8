@@ -112,6 +112,25 @@ curl -i http://localhost:PORT/<expired-code>/qr           # expect 404
 curl -i http://localhost:PORT/hello/qr                     # still 200, same as above
 ```
 
+## Validate: QR dots/corners/bg parameters (constitution v8.0.0, supersedes v7.0.0's `style`)
+
+```bash
+curl -i "http://localhost:PORT/hello/qr" -o hello-default.png                              # square dots, square corners, white bg
+curl -i "http://localhost:PORT/hello/qr?dots=round&corners=round" -o hello-round.png        # circular dots, concentric-ring corner markers
+curl -i "http://localhost:PORT/hello/qr?corners=half" -o hello-half.png                     # corner markers: 2 opposite corners rounded, 2 sharp
+curl -i "http://localhost:PORT/hello/qr?bg=e4ff33" -o hello-voltage.png                     # Voltage background — ink auto-picked (should be navy, high contrast)
+curl -i "http://localhost:PORT/hello/qr?bg=1a2b3b" -o hello-navy.png                        # Inkwell Navy background — ink auto-picked (should be light/Fog)
+curl -i "http://localhost:PORT/hello/qr?dots=nonsense&corners=nonsense&bg=nonsense"          # expect 200, identical to the default — every param silently falls back, never a 400
+curl -sD - "http://localhost:PORT/hello/qr" -o /dev/null | grep -i access-control            # expect Access-Control-Allow-Origin: *
+```
+
+Expected for each PNG: `200`, `Content-Type: image/png`, a valid image that decodes (visually
+or via any QR reader) to `{PUBLIC_BASE_URL}/hello`. Open `hello-round.png` and `hello-half.png`
+and confirm the three finder-pattern corner markers each read as one clean shape (concentric
+circles, or a squircle with 2 rounded/2 sharp corners) — not a ring of individually-visible
+dots. Confirm `hello-voltage.png`'s modules are dark (navy) and `hello-navy.png`'s modules are
+light (Fog) — the auto-contrast picking the correct ink for each background.
+
 ## Automated tests
 
 - Contract tests: `go test ./redirect/tests/contract/...` — handler-level, fast, no real

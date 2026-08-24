@@ -64,9 +64,15 @@ cache-aside lookup, without waiting for a cache miss (FR-014).
 see `specs/001-redirect-service/quickstart.md` for the endpoint's own validation steps. `ui/`'s
 part is just linking to it.
 
-1. Open a link's detail page in `ui/` → expect a "QR code" image/link pointing at
-   `redirect/`'s public `{domain}/{code}/qr` (via `buildQrImageUrl`), not a local route.
+1. Open a link's detail page in `ui/` → expect a QR preview pointing at `redirect/`'s public
+   `{domain}/{code}/qr` (via `buildQrImageUrl`), not a local route.
 2. Confirm `ui/` no longer serves `/links/{code}/qr` itself (removed).
+3. Use the Dots/Corners pickers and the background color swatch (constitution v8.0.0) — expect
+   the preview image to update live for every combination, and the card's matte background to
+   track the chosen color.
+4. Click "Download QR" — expect an actual file save (e.g. `bl8-{code}-qr.png`), not a new tab
+   opening the image. Confirm the downloaded file reflects whatever dots/corners/bg was
+   selected at the moment of clicking.
 
 ## Validate: rate limiting on creation
 

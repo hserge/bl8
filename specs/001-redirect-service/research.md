@@ -221,3 +221,112 @@ merely validate the code exists — rejected; the user's request was to move gen
 and splitting "does it exist" (redirect/) from "render the image" (ui/) would need a network
 call between two components the constitution says must share nothing but Postgres/Redis
 (Principle I).
+
+## QR style presets (2026-08-24, constitution v7.0.0)
+
+**Decision**: Replaced `github.com/skip2/go-qrcode` with `github.com/yeqown/go-qrcode/v2` +
+`github.com/yeqown/go-qrcode/writer/standard`, which supports per-module shape (square/circle)
+and foreground/background color options the prior library didn't expose. `internal/handler/
+qr.go` defines a closed `qrStyle` enum (`classic`, `rounded`, `dark`) with a fixed, hand-picked
+color/shape combination per preset — all high-contrast pairings, since QR scan reliability
+degrades with low-contrast module colors (this ruled out using bl8's Mint Signal as a module
+color anywhere; it only ever appears as chrome around the image in `ui/`, never as QR ink):
+
+- `classic` (default): Inkwell Navy `#1a2b3b` square modules on white.
+- `rounded`: Inkwell Navy circular modules on white — same safe contrast, softer shape.
+- `dark`: Fog `#edf0f2` circular modules on Abyss `#0d1726` — bl8's dark-mode surface pairing,
+  inverted (light-on-dark). Noted as a real tradeoff: a handful of older/low-quality scanners
+  assume dark-on-light and may struggle with an inverted code; accepted since this is an
+  optional style, not the default.
+
+`GET /{code}/qr?style=` selects among these; parsing never fails (`parseQRStyle` maps anything
+unrecognized to `classic`), matching the constitution's "cosmetic, not validated" framing for
+this parameter.
+
+**Sizing**: the new library sizes images by a per-module pixel width (`WithQRWidth`), not a
+total pixel size directly, so `qrImageMinPx / qrc.Dimension()` (ceiling division) picks the
+smallest per-module width that still clears FR-012's 512×512 floor for whatever QR version the
+content actually needs — this replaces the old library's `Encode(content, level, size)` which
+took a total size directly.
+
+**Format gotcha**: the library's `standard.Writer` defaults to JPEG output, not PNG —
+`standard.WithBuiltinImageEncoder(standard.PNG_FORMAT)` must be passed explicitly, or the
+`Content-Type: image/png` header would be lying about the actual bytes. Caught by
+`TestQR_ActiveLink_Returns200PNG` failing with a PNG-decode error before this was added.
+
+**Rationale**: A small, fixed, hand-picked preset enum (not exposed colors/shapes/logo options
+directly) keeps this within Principle II's "narrow, bounded exception" framing — the caller
+selects a name, never a color value, size, or image asset. Reusing the existing lookup/render
+pipeline (just swapping which library renders the final bytes) means the style feature adds no
+new failure modes beyond "which preset," not new lookup or auth logic.
+
+**Alternatives considered**: Keeping `skip2/go-qrcode` and hand-rolling color/shape
+post-processing on its output — rejected, `skip2/go-qrcode` doesn't expose per-module shape at
+all, and reimplementing that is exactly the kind of thing a maintained library already solves
+(Principle VI). Exposing arbitrary `fgColor`/`bgColor`/`shape` query parameters instead of a
+closed preset enum — rejected per the user's own clarification (a "picker" across presets, not
+free-form customization) and per the constitution's explicit narrow-exception framing, which a
+freely-parameterized color/shape API would exceed.
+
+## QR dots/corners/bg parameters (2026-08-24, constitution v8.0.0, supersedes "QR style presets" above)
+
+**Decision**: Replaced the single `style` enum (`classic`/`rounded`/`dark`) with three
+independent parameters — `dots` (`square`/`round`), `corners` (`square`/`round`/`half`), `bg`
+(any hex color) — per the user's explicit ask for finer-grained control than a fixed preset
+list. This directly reverses the "Alternatives considered" rejection in the entry above (arbitrary
+color/shape parameters were rejected there per the *prior* AskUserQuestion clarification, which
+was scoped to "a picker across presets" — this session's follow-up request asked for
+independently configurable axes, a materially different and larger ask than that clarification
+covered, which is why it needed its own constitution amendment rather than just more presets).
+
+**Corner-marker rendering fix**: `standard.IShape`'s `DrawFinder` is invoked per-module, same
+as `Draw` — the library's own circle shape draws each finder-pattern module as a separate small
+circle, producing a "ring of dots" rather than a clean marker (this was the actual look
+users saw in the v7.0.0 preset system's `rounded`/`dark` styles). `internal/handler/qrshape.go`
+implements a custom `standard.IShape` that detects the first (origin) module of each of the
+three fixed finder-pattern blocks — always at module-grid `(0,0)`, `(dimension-7,0)`,
+`(0,dimension-7)`, fixed by the QR spec regardless of content — and draws that entire marker as
+one layered shape (outer solid layer, one-module light gap, inner solid layer) using
+`github.com/fogleman/gg`'s path primitives; every other module-call into an already-drawn
+marker's area is a no-op. This is a strictly better rendering than the library's own per-module
+finder approach, independent of the new customization — it would have been worth doing even
+without the `corners` parameter.
+
+**Half-round corner shape**: "2 of opposite corners as half round" (top-left and bottom-right
+rounded, top-right and bottom-left sharp) is implemented as a hand-drawn path — `gg.Context` has
+no built-in asymmetric-corner rectangle primitive. `QuadraticTo`'s control point is set to the
+literal sharp-corner coordinate, which pulls the curve toward it without reaching it, giving a
+rounded corner anchored at roughly that position; this was chosen over `gg`'s circular-arc
+primitives for simplicity, at the cost of the curve being a parabola-ish approximation rather
+than a true circular arc — visually indistinguishable at QR module scale.
+
+**Foreground auto-contrast**: `contrastingForeground(bgHex)` computes a simple luminance
+figure (`0.299R + 0.587G + 0.114B`) and picks Inkwell Navy (`#1a2b3b`) above a 0.6 threshold,
+Fog (`#edf0f2`) below it — bl8's own light/dark text tokens, not arbitrary colors. This is a
+deliberate design constraint, not a missing feature: accepting a free-form foreground parameter
+alongside a free-form background would let a caller produce a genuinely unreadable code (e.g.
+near-identical fg/bg), which the constitution's "cosmetic, never errors" framing for these
+parameters can't catch via validation without introducing exactly the kind of new error class
+that framing rules out. Deriving fg algorithmically removes the failure mode entirely instead
+of trying to validate around it.
+
+**CORS**: `Access-Control-Allow-Origin: *` added to the QR response — required for `ui/`'s
+download button (`fetch()` + blob + synthetic `<a download>`) to work cross-origin, since a
+plain `<a download>` doesn't reliably trigger a download for cross-origin URLs (browsers treat
+it as a navigation instead). Safe to make unconditionally permissive since this endpoint is
+already public, unauthenticated, and non-sensitive (same trust level as `GET /{code}` itself).
+
+**Rationale**: Splitting the boundary by parameter (enum for shape, format-only for color)
+rather than applying one rule to all three follows from what's actually true about each: shape
+choices are genuinely enumerable (there are only so many reasonable module/marker shapes worth
+offering), color is not (any hex value is a "reasonable" color in the abstract). Treating both
+identically would mean either an artificially restrictive color palette or an artificially
+open-ended shape API — neither matches the actual shape of the two problems.
+
+**Alternatives considered**: A single combined `style=` value encoding all three axes (e.g.
+`style=round-half-e4ff33`) — rejected, string-encoding multiple independent choices into one
+parameter is more implementation complexity for no benefit over three separate query
+parameters, and makes each axis harder to default/validate independently. A true circular-arc
+corner radius (via `gg`'s arc primitives) instead of the `QuadraticTo` approximation for
+`corners=half` — deferred; the visual difference is imperceptible at the pixel sizes a QR
+module renders at, so the simpler implementation was kept (Principle VI).

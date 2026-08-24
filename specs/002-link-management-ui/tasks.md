@@ -179,6 +179,59 @@ route; `redirect/`'s own Phase (specs/001-redirect-service/tasks.md) covers the 
 
 ---
 
+## Phase 15: QR Style Picker (constitution v7.0.0)
+
+**Purpose**: Let a link's detail page render its QR code in any of `redirect/`'s three fixed
+presets, per the user's request for "a fancier qr generator which can generate by preset
+style." See research.md's "QR style picker" entry.
+
+- [X] T097 [P] Add `QR_STYLES`/`QrStyle` and an optional `style` parameter on
+      `buildQrImageUrl` to `ui/src/lib/shortUrl.ts`, mirroring `redirect/`'s `classic`/
+      `rounded`/`dark` enum (hand-kept in sync — no shared code between the two deployables,
+      Principle I)
+- [X] T098 Add a `Tabs`-based style picker to `ui/src/routes/links/[code]/+page.svelte`
+      (shadcn-svelte's existing `Tabs` component, no new component scaffolded), wired to
+      ephemeral `$state` (not persisted — research.md's "No persistence" note); updates both
+      the inline preview image and the "QR code" nav button's link
+- [X] T099 [P] Switch the QR preview wrapper's matte color between white and Abyss (`#0d1726`)
+      based on the selected style, so the `dark` preset isn't shown on a clashing white card
+
+**Checkpoint**: `pnpm run check` and `pnpm run build` pass; manually confirmed all three
+presets render and the picker updates both the preview and the nav-button link.
+
+**Superseded (2026-08-24, constitution v8.0.0)**: T097–T099 above describe the original
+three-preset `style` picker. Replaced by Phase 16 below with independent `dots`/`corners`/`bg`
+controls, per the user's follow-up request. Left `[X]` here as a record of what was originally
+built, not what's live.
+
+---
+
+## Phase 16: QR dots/corners/bg Picker + Download Button (constitution v8.0.0)
+
+**Purpose**: Replace the single style picker with independently configurable dot shape, corner
+shape, and arbitrary background color, and change the "QR code" nav button into a download
+action. See research.md's "QR dots/corners/bg picker + download button" entry.
+
+- [X] T100 [P] Replace `QR_STYLES`/`QrStyle` in `ui/src/lib/shortUrl.ts` with
+      `QR_DOT_SHAPES`/`QrDotShape`, `QR_CORNER_SHAPES`/`QrCornerShape`, and a `QrOptions`-typed
+      `buildQrImageUrl(code, { dots, corners, bg })`, mirroring `redirect/`'s new parameters
+      (hand-kept in sync, no shared code between the two deployables — Principle I)
+- [X] T101 Replace the single style `Tabs` picker in
+      `ui/src/routes/links/[code]/+page.svelte` with two independent `Tabs` pickers (Dots,
+      Corners) plus a native `<input type="color">` bound to a hex string for background;
+      switch the preview wrapper's background to an inline style bound to the chosen color
+      (not a fixed Tailwind class list, since `bg` is arbitrary)
+- [X] T102 Replace the "QR code" nav button with a "Download QR" button (Lucide `download`
+      icon): `fetch()` the current styled image, convert to a blob, trigger a synthetic
+      `<a download>` click — requires `redirect/`'s `Access-Control-Allow-Origin: *` (T044) to
+      work cross-origin
+
+**Checkpoint**: `pnpm run check` and `pnpm run build` pass; manually confirmed every
+dots×corners combination renders, a custom background color updates the preview and downloaded
+file, and clicking "Download QR" actually saves a file rather than opening a new tab.
+
+---
+
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 **Purpose**: Operational readiness and final validation across all stories

@@ -180,6 +180,64 @@ functional; `go build ./...`, `go vet ./...`, and `go test ./tests/contract/...`
 
 ---
 
+## Phase 8: QR Style Presets (constitution v7.0.0)
+
+**Purpose**: `GET /{code}/qr?style=` selects a small, fixed preset visual style, per the user's
+request for "a fancier qr generator which can generate by preset style" — clarified via
+AskUserQuestion to mean a picker across presets, requiring a constitution amendment to the
+narrow-exception framing T034 originally relied on (v6.0.0 explicitly forbade QR
+"customization... beyond the fixed PNG"; v7.0.0 reverses that specific line for a closed enum
+only). See research.md's "QR style presets" entry for the library swap and preset definitions.
+
+- [X] T038 Replace `github.com/skip2/go-qrcode` with `github.com/yeqown/go-qrcode/v2` +
+      `github.com/yeqown/go-qrcode/writer/standard` in `redirect/go.mod` (the prior library has
+      no per-module shape/color options)
+- [X] T039 [US4] Implement the `qrStyle` enum (`classic`/`rounded`/`dark`), `parseQRStyle`
+      (unrecognized/missing → `classic`, never an error), and `renderQRPNG` (per-style
+      color/shape options, explicit `PNG_FORMAT` — the library defaults to JPEG — and
+      per-module width computed to clear the 512px floor for whatever QR version the content
+      needs) in `redirect/internal/handler/qr.go` (FR-022; contracts/qr.md)
+- [X] T040 [US4] Wire `?style=` parsing into `QR.ServeHTTP`, applied after the same
+      lookup/active/expiry checks T034 already made (style never affects whether a code is
+      renderable, only how)
+- [X] T041 [P] [US4] Contract tests for all three presets (200 + valid PNG) and for an
+      unrecognized style value falling back to 200 rather than erroring, in
+      `redirect/tests/contract/qr_test.go`
+
+**Checkpoint**: `go build ./...`, `go vet ./...`, `go mod tidy` (confirms the old QR library is
+fully dropped, not just unused), and `go test ./tests/contract/...` all pass.
+
+---
+
+## Phase 9: QR dots/corners/bg Parameters (constitution v8.0.0, supersedes Phase 8's `style` enum)
+
+**Purpose**: Replace the single `style` preset with three independent parameters, per the
+user's request for finer-grained control, plus fix the finder-pattern rendering (per-module
+dots → one unified shape per marker) along the way. See research.md's "QR dots/corners/bg
+parameters" entry.
+
+- [X] T042 [US4] Implement `internal/handler/qrshape.go`: `qrDotShape`/`qrCornerShape` enums +
+      parsers (unrecognized → default, never an error); `customShape` implementing
+      `standard.IShape`, detecting each finder pattern's fixed origin module and drawing it as
+      one layered shape (outer/gap/inner) instead of per-module dots; `drawSquircleTwoCorners`
+      for the `half` corner style using `gg.QuadraticTo`
+- [X] T043 [US4] Implement `parseBgColor` (format-validated hex, 3- or 6-digit, with/without
+      `#`, invalid → white) and `contrastingForeground` (luminance-based Navy/Fog choice) in
+      `internal/handler/qr.go`; wire `dots`/`corners`/`bg` query parsing into `QR.ServeHTTP`
+      and `standard.WithCustomShape(shape)` into `renderQRPNG`
+- [X] T044 Add `Access-Control-Allow-Origin: *` to the QR response, required for `ui/`'s
+      cross-origin download button
+- [X] T045 [P] [US4] Contract tests: all `dots`×`corners` combinations render valid PNGs;
+      unrecognized shape values fall back without erroring; a custom `bg` measurably changes
+      the rendered bytes (including a one-hex-digit-different control case); invalid `bg` falls
+      back to white without erroring — in `redirect/tests/contract/qr_test.go`
+
+**Checkpoint**: `go build ./...`, `go vet ./...`, and `go test ./tests/contract/...` all pass;
+manually generated and visually inspected every shape combination plus two custom-background
+cases before considering this done (not just PNG-validity-checked).
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

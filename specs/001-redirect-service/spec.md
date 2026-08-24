@@ -13,6 +13,8 @@
 ### Session 2026-08-24
 
 - Q: Should QR code generation move here from `ui/`? → A: Yes — a third route, `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL. Reuses the exact same lookup and active/expiry rules as the redirect route (FR-005–FR-008); no ownership or auth check, since this service performs no authentication by rule (FR-017) and the encoded URL is already public via `GET /{code}` itself. Captured as FR-022, and FR-019 is updated from "no routes other than redirect and health" to include this third route. See `.specify/memory/constitution.md` v6.0.0.
+- Q: Should the QR endpoint support a "fancier" generator with selectable preset styles? → A: Yes — clarified via AskUserQuestion that this means a picker across multiple presets (not one fixed fancier default), so it's real caller-visible customization. An optional `?style=` query param selects from a small, fixed, closed enum (`classic`, `rounded`, `dark`); an unrecognized or missing value silently falls back to `classic` rather than erroring. Captured as an update to FR-022. See `.specify/memory/constitution.md` v7.0.0.
+- Q: Should styling go further — independent dot shape, corner-marker shape, and an arbitrary background color? → A: Yes, superseding the single `style` enum. `dots` (`square`/`round`) and `corners` (`square`/`round`/`half`) stay small closed enums; `bg` accepts any well-formed hex color, unenumerated, since color isn't a discrete space the way shape is. Foreground/ink color is never a parameter — it's derived from `bg`'s luminance so no combination can render unreadable. Corner markers render as one unified layered shape per marker (not per-module dots, which is what the prior per-module circle rendering actually produced). Captured as an update to FR-022. See `.specify/memory/constitution.md` v8.0.0.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -202,7 +204,13 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
   (at least 512×512px) encoding the code's canonical short URL, applying the exact same
   lookup and active/expiry status rules as the redirect route (FR-002–FR-008) — not a separate
   set of business logic — and performing no ownership or authentication check (moved from
-  `ui/`, constitution v6.0.0; Session 2026-08-24 clarification above).
+  `ui/`, constitution v6.0.0; Session 2026-08-24 clarification above). The route MUST accept
+  optional `dots` (`square`/`round`), `corners` (`square`/`round`/`half`), and `bg` (any
+  well-formed hex color) parameters; an unrecognized/malformed or missing value for any of them
+  MUST fall back to that parameter's default rather than rejecting the request; foreground/ink
+  color MUST be derived from `bg`, never accepted as its own parameter (constitution v8.0.0,
+  superseding v7.0.0's single `style` enum). The response MUST include
+  `Access-Control-Allow-Origin: *` so it can be fetched cross-origin for client-side download.
 
 ### Key Entities
 

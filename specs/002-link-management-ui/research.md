@@ -575,6 +575,68 @@ rejected; the whole point of the constitution pointing at an exact source now is
 approximate where the real values are available, and the corrections above are small, localized
 token changes, not a rework.
 
+## QR style picker (2026-08-24, constitution v7.0.0)
+
+**Decision**: The link detail page (`ui/src/routes/links/[code]/+page.svelte`) gets a small
+`Tabs`-based picker (shadcn-svelte's existing `Tabs` component, already in the project — no new
+component scaffolded) offering `redirect/`'s three fixed presets (Classic/Rounded/Dark, per
+`specs/001-redirect-service/research.md`'s "QR style presets"). Selecting one updates both the
+inline preview `<img>` and the "QR code" nav button's link via `buildQrImageUrl(code, style)`'s
+new optional `style` parameter (`ui/src/lib/shortUrl.ts`). The wrapper card's matte color
+switches between white and Abyss (`#0d1726`) to match whichever preset is selected, since the
+`dark` preset's own background would otherwise clash with a hardcoded white matte.
+
+**No persistence**: the selected style is `$state`, reset to `classic` on every page load — not
+written to the `links` table or any other store. This is a display-only preference, not
+something the create/update write path needs to own (Principle VI: no new column/migration for
+a cosmetic toggle with no stated requirement to remember it across visits).
+
+**Rationale**: `Tabs` was already installed and already used for exactly this kind of small,
+mutually-exclusive selector (the pre-rebuild hero form's Short Link/QR Code switcher), so this
+is the natural, already-vetted component for the job rather than scaffolding a new `Select`.
+Keeping `QR_STYLES`/`QrStyle` in `ui/`'s `shortUrl.ts` as a hand-maintained mirror of
+`redirect/`'s enum (not shared code — the two are separate deployables, Principle I) means a
+drift between the two would only ever produce an inert option (falls back to the server's
+default style), never a broken request.
+
+**Alternatives considered**: Persisting the chosen style per link (a new `qrStyle` column) —
+rejected as speculative; nothing in the request asked for the preference to survive a reload,
+and adding a write-path column for a purely cosmetic default would be exactly the kind of
+premature persistence Principle VI warns against. A `Select` dropdown instead of `Tabs` —
+rejected, three short-label options is exactly what `Tabs` is for, and a dropdown would be more
+clicks for the same choice.
+
+## QR dots/corners/bg picker + download button (2026-08-24, constitution v8.0.0, supersedes "QR style picker" above)
+
+**Decision**: Replaced the single style `Tabs` picker with two independent `Tabs` pickers
+("Dots": Square/Round; "Corners": Square/Round/Half-round) plus a native
+`<input type="color">` bound to a hex string for `bg`, per `specs/001-redirect-service`'s
+`dots`/`corners`/`bg` parameters (constitution v8.0.0). The preview wrapper's background is now
+an inline `style="background-color: {bgColor}"` (not a Tailwind class list) since `bg` is
+arbitrary, not a small enum — the same reasoning `redirect/`'s own constitution amendment used
+for treating color differently from shape. No-persistence stance unchanged from the entry
+above. The "QR code" nav button (previously opened the image in a new tab) is now a "Download
+QR" button (Lucide's `download` icon): it `fetch()`es the current styled image, converts it to
+a blob, and triggers a synthetic `<a download>` click — a plain `<a download>` doesn't reliably
+trigger a cross-origin download, so this needs `redirect/`'s new `Access-Control-Allow-Origin:
+*` header on the QR response to work at all.
+
+**Rationale**: Two `Tabs` pickers plus a native color input mirrors `redirect/`'s own
+enum-vs-format-validated split directly in the UI — the user picks shape from a fixed small
+set, but color from the full space a native color picker already gives for free (no need to
+build a custom color-swatch picker when the browser has one built in). `fetch()`+blob for the
+download button is the standard technique for triggering a reliable download of a cross-origin
+resource; the alternative (a plain `<a download>` pointing at `redirect/`'s URL) would silently
+degrade to just opening the image in most browsers instead of downloading it.
+
+**Alternatives considered**: A `Select`/dropdown for background color with a fixed swatch list
+— rejected, this is exactly the "arbitrary hex" case the constitution amendment exists for; a
+fixed swatch list would just be the old enum-style system with more entries. Proxying the QR
+image through a `ui/`-owned route (avoiding the need for `redirect/`'s CORS header) — rejected,
+reintroduces exactly the kind of `ui/`-owned image-serving responsibility the original QR move
+was meant to eliminate (research.md's "QR code generation" → "Moved" entry), for no benefit
+over a permissive CORS header on an already-public endpoint.
+
 ## Design reference — structural rebuild (constitution v5.0.0, supersedes the "existing structure retained" conclusion in "Design reference — Increase Design System" above)
 
 **Decision (2026-08-21)**: Constitution v5.0.0 widened the "Design reference" rule from
