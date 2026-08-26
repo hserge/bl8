@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Build the web application (ui/) that owns all URL shortener business logic. A user can log in, create a short link from a long URL (optionally with a custom alias and an expiration date), update or delete their links, view click analytics per link (counts over time, referrers) in the report, and generate a QR code for any link. Reject invalid, malformed, or unsafe URLs at creation time, and reject a custom alias that's already taken. On create, update, or delete, write to Postgres as the source of truth and write through the corresponding change to Redis so the redirect service serves fresh data immediately, without waiting for a cache miss."
+**Input**: User description: "Build the web application (ui/) that owns all URL shortener business logic. A user can log in, create a short link from a long URL (optionally with a custom slug and an expiration date), update or delete their links, view click analytics per link (counts over time, referrers) in the report, and generate a QR code for any link. Reject invalid, malformed, or unsafe URLs at creation time, and reject a custom slug that's already taken. On create, update, or delete, write to Postgres as the source of truth and write through the corresponding change to Redis so the redirect service serves fresh data immediately, without waiting for a cache miss."
 
 ## Clarifications
 
@@ -30,7 +30,7 @@
 - Q: Should the QR code's image format (SVG vs. PNG) be a firm requirement? → A: Yes — PNG, fixed resolution of at least 512×512px, for reliable print/embedding compatibility. Updated in FR-012.
 - Q: When create/update has multiple validation failures at once, should the response report all of them or just the first? → A: All of them, in one response. Captured as FR-021.
 - Q: When a link is deleted, should its click-event history be retained (orphaned), or deleted with it? → A: Deleted with it — via a database foreign key `ON DELETE CASCADE` from `click_events.code` to `links.code`. Captured as FR-022.
-- Q: Should custom aliases replace the code (as originally specced) and be unique, or become a separate, non-unique SEO decoration? → A: Separate SEO decoration. The code is always system-generated and globally unique (the sole lookup key, unchanged); an alias is an optional, non-unique value tied 1:1 to one code, appended after it (`/{code}/{alias}`). `redirect/` checks the supplied alias for exact equality against the code's registered alias, 404 on any mismatch (including when no alias is registered). This redefines FR-003 and FR-007, and requires a matching change in `redirect/`'s spec (see `specs/001-redirect-service/spec.md` FR-020/FR-021).
+- Q: Should custom slugs replace the code (as originally specced) and be unique, or become a separate, non-unique SEO decoration? → A: Separate SEO decoration. The code is always system-generated and globally unique (the sole lookup key, unchanged); a slug is an optional, non-unique value tied 1:1 to one code, appended after it (`/{code}/{slug}`). `redirect/` checks the supplied slug for exact equality against the code's registered slug, 404 on any mismatch (including when no slug is registered). This redefines FR-003 and FR-007, and requires a matching change in `redirect/`'s spec (see `specs/001-redirect-service/spec.md` FR-020/FR-021).
 
 ### Session 2026-08-24
 
@@ -41,7 +41,7 @@
 ### User Story 1 - Create a short link (Priority: P1)
 
 A logged-in user pastes a long URL and gets back a working short link (a system-generated
-code), optionally attaching an SEO alias for readability and optionally setting when the link
+code), optionally attaching a slug for readability and optionally setting when the link
 should stop working.
 
 **Why this priority**: This is the core value of the product — turning a long URL into a
@@ -54,13 +54,13 @@ delete, analytics, or QR functionality.
 **Acceptance Scenarios**:
 
 1. **Given** a logged-in user on the create-link form, **When** they submit a valid long URL
-   with no SEO alias, **Then** a new short link is created with a system-generated code and is
+   with no slug, **Then** a new short link is created with a system-generated code and is
    immediately available at `/{code}`.
 2. **Given** a logged-in user, **When** they submit a valid long URL with a well-formed SEO
-   alias, **Then** the short link is created with a system-generated code and the alias
-   attached, available both at `/{code}` and `/{code}/{alias}`.
+   slug, **Then** the short link is created with a system-generated code and the slug
+   attached, available both at `/{code}` and `/{code}/{slug}`.
 3. **Given** a logged-in user, **When** they submit a valid long URL with a malformed SEO
-   alias (wrong charset, or outside the 3–32 character range), **Then** the creation is
+   slug (wrong charset, or outside the 3–32 character range), **Then** the creation is
    rejected and no link is created.
 4. **Given** a logged-in user, **When** they submit a URL that is malformed or otherwise
    invalid, **Then** the creation is rejected with a clear reason and no link is created.
@@ -69,9 +69,9 @@ delete, analytics, or QR functionality.
 6. **Given** a user who is not logged in, **When** they submit a valid long URL on the
    public landing page's shorten form, **Then** they are routed through Google sign-in and,
    upon successful authentication, the same link is created automatically without needing to
-   re-enter the URL, alias, or expiration, landing on the new link's result page.
+   re-enter the URL, slug, or expiration, landing on the new link's result page.
 7. **Given** a user who is not logged in, **When** they submit the public shorten form with an
-   invalid or unsafe URL (or malformed alias, or a past expiration), **Then** after completing
+   invalid or unsafe URL (or malformed slug, or a past expiration), **Then** after completing
    Google sign-in they land on the create form with their original input preserved and the
    applicable validation errors shown, rather than the link being silently created or the
    input being lost.
@@ -160,11 +160,11 @@ confirming it decodes to that link's short URL.
 ### Edge Cases
 
 - What happens when two different links (even from different owners) use the exact same SEO
-  alias text? Nothing — allowed. The alias has no uniqueness requirement; it's tied 1:1 to its
-  own code and never used as a lookup key, so collisions between unrelated links' aliases are
+  slug text? Nothing — allowed. The slug has no uniqueness requirement; it's tied 1:1 to its
+  own code and never used as a lookup key, so collisions between unrelated links' slugs are
   not a conflict.
-- What happens when a visitor requests `/{code}/{alias}` with an alias that doesn't match the
-  code's registered alias (or the code has no alias registered)? The redirect service reports
+- What happens when a visitor requests `/{code}/{slug}` with a slug that doesn't match the
+  code's registered slug (or the code has no slug registered)? The redirect service reports
   not-found (404) — this is `redirect/`'s behavior (its spec FR-021), not something this
   application enforces at request time.
 - What happens when a user sets an expiration date that is already in the past? Creation or
@@ -211,9 +211,9 @@ confirming it decodes to that link's short URL.
 - **FR-002**: The system MUST allow a logged-in user to create a short link by supplying a
   long destination URL.
 - **FR-003**: The system MUST allow a user, when creating or later updating a link, to
-  optionally supply an SEO alias — a separate, cosmetic value from the link's code, appended
-  after it in the short URL (`bl8.us/{code}/{alias}`) purely for readability/SEO. The
-  alias is never used as, or in place of, the code itself.
+  optionally supply a slug — a separate, cosmetic value from the link's code, appended
+  after it in the short URL (`bl8.us/{code}/{slug}`) purely for readability/SEO. The
+  slug is never used as, or in place of, the code itself.
 - **FR-004**: The system MUST allow a user, when creating a link, to optionally supply an
   expiration date after which the link stops being usable.
 - **FR-005**: The system MUST reject link creation or update when the supplied URL is
@@ -223,11 +223,11 @@ confirming it decodes to that link's short URL.
   `data:`) and blocked internal/private-network targets. (A prior draft also required checking
   the URL against an external reputation/safe-browsing service; that was removed for now — see
   Clarifications session 2026-08-17 — and may be reconsidered later.)
-- **FR-007**: The system MUST reject link creation or update when a supplied SEO alias doesn't
+- **FR-007**: The system MUST reject link creation or update when a supplied slug doesn't
   match the required format — lowercase alphanumeric characters and hyphens only, 3–32
-  characters long. The alias has no uniqueness requirement (per code, per owner, or globally):
+  characters long. The slug has no uniqueness requirement (per code, per owner, or globally):
   it is not a lookup key, so two different links (even from different owners) may freely use
-  the same alias text.
+  the same slug text.
 - **FR-008**: The system MUST allow a user to update their own links, including the
   destination URL, expiration date, and active/deactivated status.
 - **FR-009**: The system MUST allow a user to permanently delete their own links.
@@ -263,7 +263,7 @@ confirming it decodes to that link's short URL.
   to re-authenticate via Google after that point.
 - **FR-019**: On the create and update routes, the system MUST return a distinct, unambiguous
   response for each rejection category, so a caller can tell them apart: a validation failure
-  (malformed/unsafe URL, malformed alias, or past-dated expiration) MUST return 400 Bad Request; a
+  (malformed/unsafe URL, malformed slug, or past-dated expiration) MUST return 400 Bad Request; a
   rate-limited request (FR-017) MUST return 429 Too Many Requests; on update, a non-owner
   request MUST return 403 Forbidden and a request for a nonexistent code MUST return 404 Not
   Found.
@@ -271,7 +271,7 @@ confirming it decodes to that link's short URL.
   other user's), ordered newest-first, 100 links per page. There is no separate cap on the
   total number of links a user may have — pagination is what bounds each response.
 - **FR-021**: When a create or update submission has multiple validation failures at once
-  (e.g. a malformed URL and a malformed alias together), the system MUST report all applicable
+  (e.g. a malformed URL and a malformed slug together), the system MUST report all applicable
   failures in a single response, not just the first one encountered.
 - **FR-022**: When a link is permanently deleted, the system MUST also delete its associated
   click-event history; deleted click data is not retained or recoverable.
@@ -296,12 +296,12 @@ confirming it decodes to that link's short URL.
   light/dark preference until the user makes an explicit choice; an explicit choice MUST
   persist across future visits rather than reverting to system on the next visit.
 - **FR-028**: The system MUST present the short-link creation form (destination URL, optional
-  SEO alias, optional expiration) — the **public shorten form** — on the public,
+  slug, optional expiration) — the **public shorten form** — on the public,
   unauthenticated landing page, so a visitor does not need to already be signed in to begin
   creating a link.
 - **FR-029**: When a signed-out visitor submits the public shorten form, the system MUST
   route them through Google sign-in (FR-015) and, upon successful authentication, complete
-  that same creation request without requiring the visitor to re-enter the URL, alias, or
+  that same creation request without requiring the visitor to re-enter the URL, slug, or
   expiration — redirecting to the new link's result page on success (FR-002), or returning
   them to the create form with their original input preserved and validation errors shown on
   failure (FR-019, FR-021).
@@ -311,9 +311,9 @@ confirming it decodes to that link's short URL.
 - **User Account**: A person who can log in and who owns short links. Links, their updates,
   deletions, and analytics views are all scoped to the owning account.
 - **Short Link**: A destination URL together with its system-generated code, an optional
-  cosmetic SEO alias tied 1:1 to that code, owner, optional expiration date, and
+  cosmetic slug tied 1:1 to that code, owner, optional expiration date, and
   active/deactivated status. Created, updated, and deleted exclusively through this
-  application; read (and, for expiration/deactivation/alias-matching, enforced) by the
+  application; read (and, for expiration/deactivation/slug-matching, enforced) by the
   redirect service.
 - **Click Analytics**: A read-oriented view, per link, of click counts over time and by
   referrer. Derived from click events recorded elsewhere (by the redirect service); this
@@ -328,7 +328,7 @@ confirming it decodes to that link's short URL.
   their input was invalid.
 - **SC-002**: 100% of link creation or update attempts with a malformed or unsafe URL are
   rejected, with no link created or changed as a result.
-- **SC-003**: 100% of link creation or update attempts with a malformed SEO alias (wrong
+- **SC-003**: 100% of link creation or update attempts with a malformed slug (wrong
   charset or length) are rejected, with no link created or changed as a result.
 - **SC-004**: Changes made through create, update, or delete are reflected in the redirect
   service's behavior within 2 seconds (p95), rather than waiting for a cache entry to expire
@@ -345,12 +345,12 @@ confirming it decodes to that link's short URL.
   without needing to be re-selected on each visit.
 - **SC-010**: A signed-out visitor who starts creating a link on the public landing page and
   completes Google sign-in ends up with that exact link created, without needing to re-enter
-  the URL, alias, or expiration.
+  the URL, slug, or expiration.
 
 ## Assumptions
 
 - The short code is always system-generated (never user-chosen) and remains the sole,
-  globally-unique lookup key, unchanged from the original design. The SEO alias is a separate,
+  globally-unique lookup key, unchanged from the original design. The slug is a separate,
   optional, non-unique cosmetic value.
 - "Update" is the mechanism by which a link's active/deactivated status is changed; the
   feature description didn't call out deactivation as a separate action, and it is treated as

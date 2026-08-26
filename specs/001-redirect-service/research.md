@@ -9,8 +9,8 @@ markers remain. This document records the decisions and why alternatives were re
 
 **Decision**: stdlib `net/http`, using the Go 1.22+ enhanced `ServeMux` (method+pattern
 registration, e.g. `mux.HandleFunc("GET /{code}", ...)`, `r.PathValue("code")`). The optional
-alias variant (`GET /{code}/{alias}`) is registered as a second pattern routing to the same
-handler, which reads `r.PathValue("alias")` (empty when absent) and performs the equality
+slug variant (`GET /{code}/{slug}`) is registered as a second pattern routing to the same
+handler, which reads `r.PathValue("slug")` (empty when absent) and performs the equality
 check (FR-020/FR-021) after the normal cache-aside lookup.
 
 **Rationale**: The service has exactly two logical endpoints. The enhanced stdlib mux already
@@ -74,7 +74,7 @@ memory unboundedly; it must never become a backpressure mechanism that slows red
 **Decision**: `golang.org/x/time/rate`, one `*rate.Limiter` instance created at process
 startup with limit/burst read from environment variables (e.g. `RATE_LIMIT_RPS`,
 `RATE_LIMIT_BURST`), checked inline at the top of the redirect handler (both `GET /{code}` and
-`GET /{code}/{alias}`; skipped for `GET /health`).
+`GET /{code}/{slug}`; skipped for `GET /health`).
 
 **Resolved (2026-08-17), constitution v2.0.0**: Previously described as hardcoded constants;
 now must be environment-configurable per the constitution's "no hardcoded tunable parameters"
@@ -94,13 +94,13 @@ threshold is hardcoded or configurable.
 fleet-wide, the effective total limit scales with instance count. This is accepted as inherent
 to "no shared state" rather than treated as a defect.
 
-## SEO alias equality check
+## slug equality check
 
 **Decision**: After a successful cache-aside lookup (Redis or Postgres), if the request
 included a second path segment, compare it via simple string equality against the looked-up
-record's `alias` field (already in hand — no extra Redis/Postgres round trip). Mismatch (or a
-`null` stored alias) short-circuits directly to 404, before the active/deactivated/expiry
-checks (data-model.md's Derived redirect decision, step 2) — so a wrong alias never reveals
+record's `slug` field (already in hand — no extra Redis/Postgres round trip). Mismatch (or a
+`null` stored slug) short-circuits directly to 404, before the active/deactivated/expiry
+checks (data-model.md's Derived redirect decision, step 2) — so a wrong slug never reveals
 whether the underlying code exists, is active, or is deactivated.
 
 **Rationale**: Directly implements FR-020/FR-021 and the constitution's narrowly-scoped
@@ -108,12 +108,12 @@ Principle II exception. Checking against the same record already fetched for the
 means this adds no additional dependency call and negligible latency — it's a single string
 comparison, not a second query.
 
-**Alternatives considered**: A separate Postgres/Redis lookup keyed by alias — rejected;
-`code` remains the sole lookup key (per `ui/`'s design), so an alias-keyed lookup would need
+**Alternatives considered**: A separate Postgres/Redis lookup keyed by slug — rejected;
+`code` remains the sole lookup key (per `ui/`'s design), so a slug-keyed lookup would need
 its own index/cache entry for no benefit, since the code is always present in the URL anyway.
-Normalizing or fuzzy-matching the alias (e.g. case-insensitive, trimming) — rejected; FR-021
+Normalizing or fuzzy-matching the slug (e.g. case-insensitive, trimming) — rejected; FR-021
 calls for exact equality only, keeping this a trivial, un-surprising comparison rather than a
-second place alias "business rules" could accumulate (constitution Principle V: `redirect/`
+second place slug "business rules" could accumulate (constitution Principle V: `redirect/`
 stays ignorant of business logic).
 
 ## Redis eviction and key shape
@@ -191,7 +191,7 @@ handler's cache-aside lookup, extracted into a package-level `lookupLink(ctx, ca
 code)` function (previously a `*Redirect` method) now that a second concrete caller exists
 (Principle VI: extraction needs a real second use, not speculation — this is that use). Applies
 the same active/expiry precedence as the redirect handler (410 deactivated before 404 expired)
-but no alias check (the QR route has no `{alias}` segment) and no ownership/auth check. The
+but no slug check (the QR route has no `{slug}` segment) and no ownership/auth check. The
 base URL it encodes comes from a new `PUBLIC_BASE_URL` config value (default `https://bl8.us`),
 not a hardcoded string, per the constitution's "no hardcoded tunables" rule — `ui/`'s prior
 implementation hardcoded `bl8.us` directly, which was fine for a single-environment npm script
@@ -199,10 +199,10 @@ but not for a service meant to run identically across local/staging/prod.
 
 **Mux precedence**: Go 1.22+'s `net/http.ServeMux` prefers a more-specific (literal) pattern
 over a less-specific (wildcard) one at the same position, regardless of registration order, so
-`GET /{code}/qr` is never shadowed by the sibling `GET /{code}/{alias}` — verified in
-`tests/contract/mux_test.go`'s `TestMux_RoutesCodeAndAlias`. No collision with a real alias is
-possible either way: `ui/`'s alias format rule requires at least 3 characters, and `"qr"` is
-only 2 — it was already an impossible alias value before this route existed, so no reserved-word
+`GET /{code}/qr` is never shadowed by the sibling `GET /{code}/{slug}` — verified in
+`tests/contract/mux_test.go`'s `TestMux_RoutesCodeAndSlug`. No collision with a real slug is
+possible either way: `ui/`'s slug format rule requires at least 3 characters, and `"qr"` is
+only 2 — it was already an impossible slug value before this route existed, so no reserved-word
 list was added on the `ui/` side (would have been dead code).
 
 **Rationale**: Reusing the exact lookup/status logic means a QR image can only ever be served

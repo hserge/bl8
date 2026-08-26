@@ -46,13 +46,13 @@ implemented, tested, and demoed independently.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T008 Define the Drizzle schema for `users`, `links`, and `click_events` in `ui/src/lib/server/db/schema.ts`, per data-model.md (`users.google_subject_id` unique; `links.code` unique; `links.alias` nullable with no uniqueness constraint; `links.owner_id` references `users.id`; `links.is_active`, `links.expires_at`, timestamps; `click_events.code` references `links.code` with `ON DELETE CASCADE`, per FR-022 — this app owns and migrates the `click_events` schema even though only `redirect/` writes rows to it)
+- [X] T008 Define the Drizzle schema for `users`, `links`, and `click_events` in `ui/src/lib/server/db/schema.ts`, per data-model.md (`users.google_subject_id` unique; `links.code` unique; `links.slug` nullable with no uniqueness constraint; `links.owner_id` references `users.id`; `links.is_active`, `links.expires_at`, timestamps; `click_events.code` references `links.code` with `ON DELETE CASCADE`, per FR-022 — this app owns and migrates the `click_events` schema even though only `redirect/` writes rows to it)
 - [X] T009 Configure the Drizzle Postgres client in `ui/src/lib/server/db/client.ts`
 - [X] T010 Generate and commit the initial migration (`ui/drizzle/`) via `drizzle-kit generate`, enforcing the `links.code` unique constraint at the database level (data-model.md)
 - [X] T011 [P] Configure the write-only Redis client (`ioredis`) in `ui/src/lib/server/redis.ts`, per research.md (this app never reads from Redis)
 - [X] T012 [P] Configure `@auth/sveltekit` with only the Google provider in `ui/src/lib/server/auth.ts`, including automatic user-account creation for a new `google_subject_id` on first login (FR-015, FR-016), a session `maxAge` of 72 hours (FR-018), and the `[...auth]` route contract in `ui/src/routes/auth/[...auth]/+server.ts` (contracts/auth.md)
 - [X] T013 Wire the session into `ui/src/hooks.server.ts` so every route can read the current user, and requests to protected routes without a valid session are rejected/redirected (FR-001)
-- [X] T014 [P] Implement the link-cache write-through module in `ui/src/lib/server/linkCache.ts` with `set(code, {destinationUrl, isActive, expiresAt, alias})` (JSON-encodes to key `link:{code}` via Redis `SET`) and `remove(code)` (`DEL link:{code}`), matching `redirect/`'s cache key/value shape exactly (data-model.md's write-through contract table)
+- [X] T014 [P] Implement the link-cache write-through module in `ui/src/lib/server/linkCache.ts` with `set(code, {destinationUrl, isActive, expiresAt, slug})` (JSON-encodes to key `link:{code}` via Redis `SET`) and `remove(code)` (`DEL link:{code}`), matching `redirect/`'s cache key/value shape exactly (data-model.md's write-through contract table)
 
 **Checkpoint**: Foundation ready — schema exists, a user can authenticate via Google and get a session, and the Redis write-through helper is ready to be called by any story.
 
@@ -60,24 +60,24 @@ implemented, tested, and demoed independently.
 
 ## Phase 3: User Story 1 - Create a short link (Priority: P1) 🎯 MVP
 
-**Goal**: A logged-in user can turn a long URL into a working short link (always a system-generated code), optionally with an SEO alias and expiration, with invalid/unsafe URLs and malformed aliases rejected.
+**Goal**: A logged-in user can turn a long URL into a working short link (always a system-generated code), optionally with a slug and expiration, with invalid/unsafe URLs and malformed slugs rejected.
 
-**Independent Test**: Log in, submit a valid long URL (with and without an SEO alias, with and without an expiration), confirm a new link is created and its Redis write-through key appears immediately; confirm malformed/unsafe URLs and malformed aliases are rejected with no link created.
+**Independent Test**: Log in, submit a valid long URL (with and without a slug, with and without an expiration), confirm a new link is created and its Redis write-through key appears immediately; confirm malformed/unsafe URLs and malformed slugs are rejected with no link created.
 
 ### Tests for User Story 1
 
-- [X] T015 [P] [US1] Server-route test for `POST /links/new` covering FR-002–FR-007, FR-017, and FR-019 (valid create, create with a well-formed alias, malformed alias, malformed URL, unsafe URL, past expiration, rate-limit exceeded — asserting the 400/429 status codes per FR-019), plus an SC-004 assertion that the Redis key exists within 2 seconds of the response, in `ui/tests/server/links-create.test.ts`, against real test Postgres + Redis (research.md)
-- [X] T016 [P] [US1] Unit tests for the URL-safety module (scheme allow-list, private-network block-list) and the alias-format validator (charset, length boundaries) in `ui/tests/unit/urlSafety.test.ts` and `ui/tests/unit/aliasFormat.test.ts`
+- [X] T015 [P] [US1] Server-route test for `POST /links/new` covering FR-002–FR-007, FR-017, and FR-019 (valid create, create with a well-formed slug, malformed slug, malformed URL, unsafe URL, past expiration, rate-limit exceeded — asserting the 400/429 status codes per FR-019), plus an SC-004 assertion that the Redis key exists within 2 seconds of the response, in `ui/tests/server/links-create.test.ts`, against real test Postgres + Redis (research.md)
+- [X] T016 [P] [US1] Unit tests for the URL-safety module (scheme allow-list, private-network block-list) and the slug-format validator (charset, length boundaries) in `ui/tests/unit/urlSafety.test.ts` and `ui/tests/unit/slugFormat.test.ts`
 - [X] T017 [P] [US1] Unit tests for the rate-limit module (account-keyed counter, threshold behavior) in `ui/tests/unit/ratelimit.test.ts`
 - [X] T018 [P] [US1] End-to-end test for the create-link flow (Google test-OIDC login → create → link appears) in `ui/tests/e2e/create-link.spec.ts`
 
 ### Implementation for User Story 1
 
-- [X] T019 [P] [US1] Implement the URL-safety module in `ui/src/lib/server/urlSafety.ts` (structural validation, scheme allow-list, internal/private-network block-list — FR-005, FR-006) and the alias-format validator in `ui/src/lib/server/aliasFormat.ts` (lowercase alphanumeric + hyphens, 3–32 chars — FR-007; research.md)
+- [X] T019 [P] [US1] Implement the URL-safety module in `ui/src/lib/server/urlSafety.ts` (structural validation, scheme allow-list, internal/private-network block-list — FR-005, FR-006) and the slug-format validator in `ui/src/lib/server/slugFormat.ts` (lowercase alphanumeric + hyphens, 3–32 chars — FR-007; research.md)
 - [X] T020 [P] [US1] Implement the Redis-backed rate-limit module in `ui/src/lib/server/ratelimit.ts`: `checkAndConsume({userId, action})` keyed `ratelimit:create:acct:{userId}`, with the threshold/window read from environment variables (e.g. `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_SECONDS`) rather than hardcoded (FR-017; research.md — account-keyed only, no IP branch since unauthenticated requests never reach this point per FR-001)
-- [X] T021 [US1] Implement the create-link server action in `ui/src/routes/links/new/+page.server.ts`: rate-limit check first (its own 429, not aggregated — FR-017/FR-019), then run URL-safety, alias-format (reusing T019), and expiration-in-the-past (FR-023) checks independently and collect every failure into one `errors` map (FR-021 — do NOT short-circuit on the first failure) → if none, generate a unique `code` → Postgres insert → `linkCache.set` write-through (including `alias`) → redirect to the link's detail page (FR-002, FR-003, FR-004, FR-007, FR-013, FR-014, FR-017, FR-021, FR-023; contracts/links.md)
-- [X] T022 [US1] Implement the create-link form UI in `ui/src/routes/links/new/+page.svelte` (URL input, optional SEO-alias input, optional expiration date input, per-field validation error display)
-- [X] T023 [US1] Implement the read-only link detail/confirmation page (`ui/src/routes/links/[code]/+page.svelte` + `+page.server.ts` load, ownership-checked per FR-010, returning 403/404 per contracts/links.md's `GET /links/{code}` entry) showing the short URL, destination, alias/code, and expiration — the page User Story 2 will extend with edit/delete controls
+- [X] T021 [US1] Implement the create-link server action in `ui/src/routes/links/new/+page.server.ts`: rate-limit check first (its own 429, not aggregated — FR-017/FR-019), then run URL-safety, slug-format (reusing T019), and expiration-in-the-past (FR-023) checks independently and collect every failure into one `errors` map (FR-021 — do NOT short-circuit on the first failure) → if none, generate a unique `code` → Postgres insert → `linkCache.set` write-through (including `slug`) → redirect to the link's detail page (FR-002, FR-003, FR-004, FR-007, FR-013, FR-014, FR-017, FR-021, FR-023; contracts/links.md)
+- [X] T022 [US1] Implement the create-link form UI in `ui/src/routes/links/new/+page.svelte` (URL input, optional SEO-slug input, optional expiration date input, per-field validation error display)
+- [X] T023 [US1] Implement the read-only link detail/confirmation page (`ui/src/routes/links/[code]/+page.svelte` + `+page.server.ts` load, ownership-checked per FR-010, returning 403/404 per contracts/links.md's `GET /links/{code}` entry) showing the short URL, destination, slug/code, and expiration — the page User Story 2 will extend with edit/delete controls
 
 **Checkpoint**: User Story 1 is fully functional and independently testable/demoable.
 
@@ -91,7 +91,7 @@ implemented, tested, and demoed independently.
 
 ### Tests for User Story 2
 
-- [X] T024 [P] [US2] Server-route test for `PATCH /links/{code}` covering FR-007, FR-008, FR-010, FR-017, FR-019 (successful update of each field including alias, unsafe/invalid new URL leaves link unchanged, malformed new alias leaves link unchanged, non-owner rejected, rate-limit exceeded — asserting the 400/403/404/429 status codes per FR-019) in `ui/tests/server/links-update.test.ts`
+- [X] T024 [P] [US2] Server-route test for `PATCH /links/{code}` covering FR-007, FR-008, FR-010, FR-017, FR-019 (successful update of each field including slug, unsafe/invalid new URL leaves link unchanged, malformed new slug leaves link unchanged, non-owner rejected, rate-limit exceeded — asserting the 400/403/404/429 status codes per FR-019) in `ui/tests/server/links-update.test.ts`
 - [X] T025 [P] [US2] Server-route test for `DELETE /links/{code}` covering FR-009, FR-010 (successful delete removes both Postgres row and Redis key, non-owner rejected, not rate-limited) in `ui/tests/server/links-delete.test.ts`
 - [X] T026 [P] [US2] Server-route test for `GET /links` covering ownership scoping (only the caller's own links are returned) in `ui/tests/server/links-list.test.ts`
 - [X] T027 [P] [US2] End-to-end test for update/delete flows, including a cross-account rejection case, in `ui/tests/e2e/manage-links.spec.ts`
@@ -99,9 +99,9 @@ implemented, tested, and demoed independently.
 ### Implementation for User Story 2
 
 - [X] T028 [US2] Implement the `GET /links` list route (`ui/src/routes/links/+page.server.ts` load + `ui/src/routes/links/+page.svelte`), scoped to the caller's own links, paginated 100/page, newest-first, with an empty-state message and create-link CTA when the caller has zero links (FR-010, FR-020; contracts/links.md; spec.md Acceptance Scenario 2.5)
-- [X] T029 [US2] Add the update action to `ui/src/routes/links/[code]/+page.server.ts`: ownership check, then rate-limit check (its own 429, not aggregated — FR-017/FR-019), then run URL-safety (on any new destination URL), alias-format (on any new alias, reusing T019), and expiration-in-the-past (FR-023, on any new expiration) checks independently and collect every failure into one `errors` map (FR-021 — do NOT short-circuit on the first failure) → if none, Postgres update → `linkCache.set` write-through with the full new state (FR-007, FR-008, FR-010, FR-013, FR-014, FR-017, FR-021, FR-023; contracts/links.md)
+- [X] T029 [US2] Add the update action to `ui/src/routes/links/[code]/+page.server.ts`: ownership check, then rate-limit check (its own 429, not aggregated — FR-017/FR-019), then run URL-safety (on any new destination URL), slug-format (on any new slug, reusing T019), and expiration-in-the-past (FR-023, on any new expiration) checks independently and collect every failure into one `errors` map (FR-021 — do NOT short-circuit on the first failure) → if none, Postgres update → `linkCache.set` write-through with the full new state (FR-007, FR-008, FR-010, FR-013, FR-014, FR-017, FR-021, FR-023; contracts/links.md)
 - [X] T030 [US2] Add the delete action to `ui/src/routes/links/[code]/+page.server.ts`: ownership check → Postgres delete → `linkCache.remove` write-through (FR-009, FR-010, FR-013, FR-014; data-model.md)
-- [X] T031 [US2] Extend `ui/src/routes/links/[code]/+page.svelte` with an edit form (destination URL, SEO alias, expiration, active/deactivated toggle) and a delete control with confirmation
+- [X] T031 [US2] Extend `ui/src/routes/links/[code]/+page.svelte` with an edit form (destination URL, slug, expiration, active/deactivated toggle) and a delete control with confirmation
 
 **Checkpoint**: User Stories 1 and 2 both work independently; a user has a full link lifecycle.
 
@@ -170,9 +170,9 @@ dropped (forced by `redirect/`'s no-auth rule, not a separate risk decision).
       local route
 - [X] T095 [P] Remove the now-unused `qrcode`, `@types/qrcode`, `jsqr`, `pngjs`, `@types/pngjs`
       packages from `ui/package.json` and reinstall to update the lockfile
-- [X] T096 Update `ui/tests/unit/aliasFormat.test.ts` — no reserved-word test needed (`"qr"` was
-      already impossible as an alias under the existing 3-char minimum; documented via a
-      comment in `aliasFormat.ts` instead of new validation logic)
+- [X] T096 Update `ui/tests/unit/slugFormat.test.ts` — no reserved-word test needed (`"qr"` was
+      already impossible as a slug under the existing 3-char minimum; documented via a
+      comment in `slugFormat.ts` instead of new validation logic)
 
 **Checkpoint**: `pnpm run check` and `pnpm run build` pass with no references to the removed
 route; `redirect/`'s own Phase (specs/001-redirect-service/tasks.md) covers the new endpoint.
@@ -307,15 +307,15 @@ immediate-creation behavior to `/links/new`.
 
 ### Tests for Phase 10
 
-- [X] T064 [P] [US1] Server-route test for the carried-through creation path: an authenticated `GET /links/new?url=...&alias=...&expiresAt=...` creates the link and redirects to the result page; an invalid carried URL renders the form pre-filled with validation errors instead of silently discarding the input (FR-029; contracts/links.md's `GET /links/new` entry) in `ui/tests/server/links-new-carrythrough.test.ts`
+- [X] T064 [P] [US1] Server-route test for the carried-through creation path: an authenticated `GET /links/new?url=...&slug=...&expiresAt=...` creates the link and redirects to the result page; an invalid carried URL renders the form pre-filled with validation errors instead of silently discarding the input (FR-029; contracts/links.md's `GET /links/new` entry) in `ui/tests/server/links-new-carrythrough.test.ts`
 - [X] T065 [P] [US1] End-to-end test: a signed-out visitor submits the public shorten form, completes sign-in (via the `e2e-test` Credentials provider), and lands on the result page with no re-entry; a second run asserts an already-signed-in submission on `/` behaves identically to `/links/new` in `ui/tests/e2e/public-shorten-form.spec.ts`
 
 ### Implementation for Phase 10
 
 - [X] T066 [US1] Implement `ui/src/lib/components/ShortenForm.svelte`: the tabbed Short Link/QR Code card (shadcn-svelte `Tabs`/`Field`/`Input`/`Button`) matching the design reference's structure, shared by the landing page (T067) and `/links/new` (T058) (FR-028; research.md)
 - [X] T067 [US1] Rebuild `ui/src/routes/+page.svelte`'s logged-out state: a dark-navy hero band containing `ShortenForm`, followed by an honest explanation of what bl8 does (research.md's "Design reference — content honesty" — no fabricated testimonials/stats/logos), matching the design reference's spacing and section rhythm; the logged-in state is unchanged (mobile-first)
-- [X] T068 [US1] `ShortenForm` (T066) submits directly to `/links/new`'s existing `default` action (`ui/src/routes/links/new/+page.server.ts`, T021) — no new route needed. Add a branch there, before the current `error(401, ...)` throw: when no session exists, redirect to Google sign-in with the submitted `url`/`alias`/`expiresAt` carried as `callbackUrl` query parameters targeting `/links/new` (FR-029)
-- [X] T069 [US1] Extend `ui/src/routes/links/new/+page.server.ts`'s `load` to detect carried `url`/`alias`/`expiresAt` query parameters for an authenticated session (arriving via T068's redirect), run T021's creation logic, and redirect to the result page on success or pre-fill the form with validation errors shown on failure (FR-029; contracts/links.md)
+- [X] T068 [US1] `ShortenForm` (T066) submits directly to `/links/new`'s existing `default` action (`ui/src/routes/links/new/+page.server.ts`, T021) — no new route needed. Add a branch there, before the current `error(401, ...)` throw: when no session exists, redirect to Google sign-in with the submitted `url`/`slug`/`expiresAt` carried as `callbackUrl` query parameters targeting `/links/new` (FR-029)
+- [X] T069 [US1] Extend `ui/src/routes/links/new/+page.server.ts`'s `load` to detect carried `url`/`slug`/`expiresAt` query parameters for an authenticated session (arriving via T068's redirect), run T021's creation logic, and redirect to the result page on success or pre-fill the form with validation errors shown on failure (FR-029; contracts/links.md)
 
 **Checkpoint**: FR-028/FR-029 fully functional and independently testable; User Story 1 now has two working entry points (public landing page, `/links/new` directly) sharing one component and one server-side creation path.
 
@@ -344,7 +344,7 @@ still missing, matched against `docs/design/styles.css` and research.md's "Corre
 - No `--color-code` token — the design system's dedicated code/data accent (`#7ec4ff`) has
   never been added, so short codes (already rendered in `font-mono`) have no distinct color.
 - `Badge` uses shadcn's default pill radius (`rounded-4xl`) — the design system defines a
-  separate, smaller `--r-tag: 4px` specifically for tags, and bl8's badges (alias, status) are
+  separate, smaller `--r-tag: 4px` specifically for tags, and bl8's badges (slug, status) are
   exactly that.
 - Headings use generic Tailwind scale/tracking (`text-2xl tracking-tight`, etc.) rather than
   the design system's exact `clamp()`-based sizes and letter-spacing.
@@ -359,8 +359,8 @@ correctly implemented** — confirmed by reading `layout.css` directly, not re-b
       needed, matching the existing pattern already used for `--ring`/`--muted-foreground`).
       Apply `text-code` to short-code rendering in `ui/src/routes/links/+page.svelte` (list),
       `ui/src/routes/links/[code]/+page.svelte` (detail heading), and
-      `ui/src/routes/links/new/+page.svelte` (alias-preview line's code portion, if
-      distinguishable from the alias text itself)
+      `ui/src/routes/links/new/+page.svelte` (slug-preview line's code portion, if
+      distinguishable from the slug text itself)
 - [X] T074 [P] Override `Badge`'s radius in `ui/src/lib/components/ui/badge/badge.svelte` from
       `rounded-4xl` to the design system's tag radius (`rounded-[4px]`), matching
       `docs/design/styles.css`'s `--r-tag`
@@ -405,7 +405,7 @@ implements. Scoped to the landing page (`/`) and its shared components (`Header.
       (mobile-first).
 - [X] T081 Rewrite `ui/src/lib/components/ShortenForm.svelte`: remove the `Short Link`/`QR Code`
       tab switcher entirely; replace with a flat form (Long URL required + Custom back-half
-      optional, `bl8.us/` prefix shown per the alias field, matching `docs/design/`'s
+      optional, `bl8.us/` prefix shown per the slug field, matching `docs/design/`'s
       `.field-row` pattern) that stacks at 375px and lays out as two columns + submit button at
       desktop widths (`sm:`/`md:` breakpoint). Submit behavior (validation, auth-gated creation,
       carry-through query params per research.md's "Public shorten-form" decision) is unchanged

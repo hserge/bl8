@@ -9,7 +9,7 @@
 ## Summary
 
 A SvelteKit application (frontend + server-side routes, not a static frontend) that owns all
-URL-shortener business logic: Google-authenticated link creation (with an optional SEO alias
+URL-shortener business logic: Google-authenticated link creation (with an optional slug
 and expiration), update/delete, per-link click analytics, and QR code generation. Server
 routes talk directly to Postgres for all reads and writes of link, user, and analytics data,
 and write through the corresponding change to Redis on create/update/delete so `redirect/`
@@ -90,7 +90,7 @@ directly useful, not speculative); `ioredis` (Redis write-through client);
 (headless primitives it wraps) + `@lucide/svelte` (icon set) — frontend component library,
 constitution-mandated (resolved 2026-08-17, see research.md); `mode-watcher` — light/dark/
 system theme switching with persistence (resolved 2026-08-17, see research.md); `Inter`
-(display/heading + body/UI font) + `JetBrains Mono` (code/data — short codes, aliases) —
+(display/heading + body/UI font) + `JetBrains Mono` (code/data — short codes, slugs) —
 typography per the "Increase Design System" constitution reference (resolved 2026-08-18, see
 research.md's "Design reference — Increase Design System"; Inter/JetBrains Mono are the
 constitution's own documented fallbacks for the unlicensed commercial "Untitled Sans"/"Input
@@ -138,7 +138,7 @@ and QR generation is scoped to the authenticated owner
 | II. Redirect Is a Minimal Read-Path Service | N/A here (see Amendment v6 above) | Enforced by the redirect plan, not this one. This plan's only touchpoint is removing `ui/`'s QR route now that generation lives on `redirect/`'s new `GET /{code}/qr` — the endpoint itself is `specs/001-redirect-service`'s to satisfy. |
 | III. Cache-Aside Reads, Postgres as Source of Truth | PASS | `ui/` writes to Postgres first (source of truth) and write-throughs to Redis in the same operation on create/update/delete — this is exactly the write side of the pattern the constitution assigns to `ui/`. `ui/` never depends on Redis for correctness (it never reads from Redis). |
 | IV. Non-Blocking Click Recording | N/A here | Click recording is `redirect/`'s responsibility; `ui/` only reads/aggregates click data for analytics, never records clicks. |
-| V. UI Owns Writes and Business Logic | PASS | All write paths (create/update/delete), URL validation, unsafe-URL rejection, alias formatting, auth, and creation/update-route rate limiting live here, matching the constitution exactly. |
+| V. UI Owns Writes and Business Logic | PASS | All write paths (create/update/delete), URL validation, unsafe-URL rejection, slug formatting, auth, and creation/update-route rate limiting live here, matching the constitution exactly. |
 | VI. Simplicity Over Abstraction | PASS | `@auth/sveltekit` is used instead of hand-rolling OAuth2 (state/PKCE/token exchange is exactly the kind of security-sensitive code a vetted library should own, not a speculative abstraction). `drizzle-orm` is justified because this app owns the schema and needs real migrations — not added as a defensive layer over a currently-unneeded need. No repository/service-layer indirection beyond what SvelteKit's own `+page.server.ts`/`+server.ts` routing already provides. |
 | VII. Test-First Delivery | PASS (commitment) | Vitest (unit/server-route) and Playwright (end-to-end) tests are scoped in Project Structure below and required before any task is marked complete in `/speckit-tasks` → `/speckit-implement`. |
 
@@ -223,7 +223,7 @@ ui/
 │   │   │   ├── +page.server.ts               # load: list owner's links
 │   │   │   ├── new/
 │   │   │   │   ├── +page.svelte               # create form (User Story 1)
-│   │   │   │   └── +page.server.ts              # action: create (validate, alias check, write-through)
+│   │   │   │   └── +page.server.ts              # action: create (validate, slug check, write-through)
 │   │   │   └── [code]/
 │   │   │       ├── +page.svelte                  # edit/detail view (User Story 2)
 │   │   │       ├── +page.server.ts                 # actions: update, delete (ownership-checked)
@@ -248,7 +248,7 @@ ui/
 │   │   │   ├── redis.ts                         # write-through client (ioredis), write-only from ui/
 │   │   │   ├── linkCache.ts                       # Redis write-through: set(code, {...}) / remove(code)
 │   │   │   ├── urlSafety.ts                       # structural checks: scheme + private-network (FR-006)
-│   │   │   ├── aliasFormat.ts                       # SEO alias format validation (FR-007)
+│   │   │   ├── slugFormat.ts                       # slug format validation (FR-007)
 │   │   │   ├── ratelimit.ts                         # Redis-backed limiter: keyed by account
 │   │   │   ├── analytics.ts                           # click-count aggregation (day-bucketed) + referrers (FR-011)
 │   │   │   ├── logger.ts                                # structured logging for mutations/rejections (FR-026)
@@ -279,7 +279,7 @@ ui/
 ├── package.json
 ├── pnpm-lock.yaml
 └── tests/
-    ├── unit/                                # Vitest: urlSafety, aliasFormat, ratelimit, auth session config
+    ├── unit/                                # Vitest: urlSafety, slugFormat, ratelimit, auth session config
     ├── server/                               # Vitest: +page.server.ts / +server.ts route behavior
     └── e2e/                                    # Playwright: full flows against a real (test) Postgres+Redis
 ```

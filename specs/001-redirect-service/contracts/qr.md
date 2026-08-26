@@ -8,7 +8,7 @@ Added 2026-08-24, constitution v6.0.0 — moved here from `ui/`'s prior `GET /li
 - Method: `GET`
 - Path: `/{code}/qr` — `code` is an opaque path segment, taken as-is; no format/schema
   validation is performed on it (same as the redirect route, FR-018). The literal `qr` segment
-  takes precedence over the sibling `/{code}/{alias}` pattern (Go 1.22+ `net/http.ServeMux`
+  takes precedence over the sibling `/{code}/{slug}` pattern (Go 1.22+ `net/http.ServeMux`
   specificity rules — see research.md).
 - Optional query parameters (constitution v8.0.0, superseding v7.0.0's single `?style=` enum):
   - `dots`: `square` (default) or `round` — data-module shape.
@@ -48,5 +48,5 @@ Added 2026-08-24, constitution v6.0.0 — moved here from `ui/`'s prior `GET /li
 - No customization beyond `dots`/`corners`/`bg` above — no free-form shapes, no foreground
   color parameter, no logo embedding, size options, or alternate image formats (constitution
   v8.0.0).
-- No alias-qualified variant (`/{code}/{alias}/qr`) — the encoded URL is always the bare
-  `{PUBLIC_BASE_URL}/{code}` form, regardless of whether the code has a registered alias.
+- No slug-qualified variant (`/{code}/{slug}/qr`) — the encoded URL is always the bare
+  `{PUBLIC_BASE_URL}/{code}` form, regardless of whether the code has a registered slug.

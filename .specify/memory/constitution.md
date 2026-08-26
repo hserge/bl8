@@ -1,10 +1,19 @@
 <!--
 Sync Impact Report
-Version change: 7.0.0 → 8.0.0
-Modified principles: II. Redirect Is a Minimal Read-Path Service — redefined again
+Version change: 8.0.0 → 8.0.1
+Modified principles: II. Redirect Is a Minimal Read-Path Service, V. UI Owns Writes and
+  Business Logic — terminology only, "alias"/"SEO alias" renamed to "slug" throughout (no rule
+  changed; the field, route segment, and behavior described are identical to v8.0.0)
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (8.0.1, 2026-08-25):
+  - II. Redirect Is a Minimal Read-Path Service, V. UI Owns Writes and Business Logic: PATCH —
+    every "alias"/"SEO alias" reference renamed to "slug", matching the same rename applied
+    across ui/ (DB column, cache field, form field, UI copy) and redirect/ (route segment,
+    struct field) so the constitution's terminology doesn't drift from the code it governs.
+    Purely a naming change; no principle's substance moved.
 
 Changed sections (8.0.0, 2026-08-24):
   - II. Redirect Is a Minimal Read-Path Service: replaces the single `?style=` closed-enum
@@ -79,12 +88,12 @@ and release on its own schedule, unconstrained by the slower-moving, feature-hea
 ### II. Redirect Is a Minimal Read-Path Service
 
 `redirect/` exposes exactly three logical endpoints: the redirect lookup — `GET /{code}`, and
-optionally `GET /{code}/{alias}` when the code has a registered SEO alias; a QR-code image for
+optionally `GET /{code}/{slug}` when the code has a registered slug; a QR-code image for
 the same code — `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL;
 and `GET /health`. It MUST NOT gain create, update, delete, or list endpoints, authentication,
 or request validation beyond looking up the code, with exactly three narrow exceptions: (1) when
 a second path segment is present on the redirect route and isn't the literal `qr`, it MUST be
-checked for exact equality against the looked-up record's registered alias (a field already
+checked for exact equality against the looked-up record's registered slug (a field already
 fetched as part of the same lookup), returning 404 on mismatch; (2) the QR endpoint MUST reuse
 that same lookup and its active/expiry status rules unchanged (404 missing/expired, 410
 deactivated) rather than adding any QR-specific business logic, and MUST NOT perform an
@@ -103,7 +112,7 @@ parameters, valid or not, MUST silently fall back to its default (never a reques
 since they are cosmetic, not validated, inputs — an unrecognized shape name or malformed hex
 string is simply treated as absent. Neither this nor the other two exceptions is general
 request validation, and none MUST grow into anything more — no partial matching, normalization,
-alias-specific business logic, logo embedding, arbitrary sizing, or any QR parameter beyond
+slug-specific business logic, logo embedding, arbitrary sizing, or any QR parameter beyond
 `dots`/`corners`/`bg` as specified here. It is stateless and MUST be safe to run as many
 identical, horizontally scaled instances with no shared in-process state.
 Any feature request that would add write behavior, business logic, or auth to `redirect/`
@@ -152,11 +161,11 @@ waiting on a redirect must never pay the cost of a database write.
 
 ### V. UI Owns Writes and Business Logic
 
-All write paths and business rules — link creation, validation, unsafe-URL rejection, SEO
-alias formatting, update, delete, authentication, rate limiting on creation, and analytics —
+All write paths and business rules — link creation, validation, unsafe-URL rejection, slug
+formatting, update, delete, authentication, rate limiting on creation, and analytics —
 live exclusively in `ui/`. `redirect/` MUST remain ignorant of these rules; it only looks up
 codes and serves results (including reading the global, environment-configurable rate limit
-for redirects, deactivated-link 410s, expired/missing-link 404s, and the alias-match check in
+for redirects, deactivated-link 410s, expired/missing-link 404s, and the slug-match check in
 Principle II, all of which are inherent to serving a lookup, not business validation).
 
 **Rationale**: Keeping business logic in one place avoids divergent validation rules and
@@ -229,7 +238,7 @@ risk. A feature without tests is not done.
   as it's next touched.
 - **Domain separation**: `redirect/` is served on the bare domain (`bl8.us`); `ui/` is served
   on a subdomain (`admin.bl8.us`). The two components' path namespaces never need to avoid
-  colliding with each other — `redirect/`'s `/{code}`, `/{code}/{alias}`, `/health` and `ui/`'s
+  colliding with each other — `redirect/`'s `/{code}`, `/{code}/{slug}`, `/health` and `ui/`'s
   `/links`, `/auth`, `/health`, etc. live on entirely different hosts. This is what makes
   Principle I's independence concrete at the deployment level, not just at the code level.
 
@@ -362,4 +371,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 8.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-24
+**Version**: 8.0.1 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-25

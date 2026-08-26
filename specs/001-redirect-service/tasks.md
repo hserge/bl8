@@ -46,7 +46,7 @@ implemented, tested, and demoed independently.
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T006 Implement environment-variable config loading in `redirect/internal/config/config.go`: `PORT`, `REDIS_ADDR`, `DATABASE_URL`, `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` — no hardcoded tunables (constitution; research.md's rate-limiting decision)
-- [X] T007 [P] Implement the Redis cache-aside client in `redirect/internal/linkcache/linkcache.go`: `Get(ctx, code) (*Link, error)` and `Set(ctx, code, link)`, using the exact JSON shape from data-model.md's Cache representation (`destination_url`, `is_active`, `expires_at` ISO 8601 or `null`, `alias` or `null`) via Redis `GET`/`SET` on key `link:{code}` — no hash, per research.md
+- [X] T007 [P] Implement the Redis cache-aside client in `redirect/internal/linkcache/linkcache.go`: `Get(ctx, code) (*Link, error)` and `Set(ctx, code, link)`, using the exact JSON shape from data-model.md's Cache representation (`destination_url`, `is_active`, `expires_at` ISO 8601 or `null`, `slug` or `null`) via Redis `GET`/`SET` on key `link:{code}` — no hash, per research.md
 - [X] T008 [P] Implement the Postgres fallback lookup in `redirect/internal/linkstore/linkstore.go`: `GetByCode(ctx, code) (*Link, error)` using `pgxpool`, reading the existing `links` table `ui/` owns (no migrations, no schema definition here — research.md's confirmed schema-ownership note)
 - [X] T009 [P] Implement the in-process global rate limiter wrapper in `redirect/internal/ratelimit/ratelimit.go`: one `*rate.Limiter` built from `RATE_LIMIT_RPS`/`RATE_LIMIT_BURST` (T006), with an `Allow() bool` method
 - [X] T010 [P] Implement the dependency-reachability checks in `redirect/internal/health/health.go`: `CheckRedis(ctx) error` (`PING`) and `CheckPostgres(ctx) error` (`pgxpool.Ping`), each a live check, never memoized (contracts/health.md, SC-005)
@@ -59,7 +59,7 @@ implemented, tested, and demoed independently.
 ## Phase 3: User Story 1 - Follow a short link to its destination (Priority: P1) 🎯 MVP
 
 **Goal**: A visitor requesting an existing, active, unexpired short code (with or without a
-matching SEO alias segment) is redirected to its destination URL, with a click event recorded
+matching slug segment) is redirected to its destination URL, with a click event recorded
 asynchronously and with no perceptible added latency.
 
 **Independent Test**: Request a known, active, unexpired short code (cached and not-yet-cached)
@@ -69,15 +69,15 @@ recorded without delaying the response.
 
 ### Tests for User Story 1
 
-- [X] T012 [P] [US1] Contract test for `GET /{code}` and `GET /{code}/{alias}` (cache-hit redirect, alias match, `503` when both dependencies are simulated unreachable) using `httptest` + fakes at the handler boundary, in `redirect/tests/contract/redirect_test.go`
+- [X] T012 [P] [US1] Contract test for `GET /{code}` and `GET /{code}/{slug}` (cache-hit redirect, slug match, `503` when both dependencies are simulated unreachable) using `httptest` + fakes at the handler boundary, in `redirect/tests/contract/redirect_test.go`
 - [X] T013 [P] [US1] Integration test for the cache-aside path: cache-miss → Postgres fallback → redirect → Redis repopulated; a second request served from cache; redirects continuing to succeed with Redis stopped and Postgres reachable (SC-006), via `testcontainers-go` real Redis + Postgres, in `redirect/tests/integration/redirect_cacheaside_test.go`
 - [X] T014 [P] [US1] Integration test asserting click recording is non-blocking: response timing is unaffected by a deliberately slow/paused Postgres after the lookup completes, and a corresponding `click_events` row appears shortly after (asynchronously) (spec FR-010, FR-011, SC-003), in `redirect/tests/integration/clickwriter_test.go`
 
 ### Implementation for User Story 1
 
 - [X] T015 [US1] Implement the non-blocking async click writer in `redirect/internal/clickwriter/clickwriter.go`: a bounded buffered channel fed by the handler, drained by a background goroutine that inserts into `click_events` (`code`, `occurred_at` set at write time, `referrer`); full channel drops rather than blocks (research.md's accepted tradeoff; FR-009–FR-011)
-- [X] T016 [US1] Implement the `GET /{code}` / `GET /{code}/{alias}` handler in `redirect/internal/handler/redirect.go`, applying data-model.md's Derived redirect decision in order: cache-aside lookup (T007 then T008 on miss, repopulating via T007's `Set`) → not-found if no row → alias-mismatch → 404 (FR-020/FR-021, checked before active/expiry so a wrong alias never reveals link state) → deactivated → 410 (precedence over expiry) → expired → 404 → else `302` with `Location: destination_url` and enqueue a click event (T015) after/independent of sending the response
-- [X] T017 [US1] Register `GET /{code}` and `GET /{code}/{alias}` on the mux in `redirect/cmd/redirect/main.go`, applying the rate limiter (T009) inline at the top of the handler (429 on exceeded, before any lookup) and wiring the click writer (T015) and cache/store clients into the handler (T016)
+- [X] T016 [US1] Implement the `GET /{code}` / `GET /{code}/{slug}` handler in `redirect/internal/handler/redirect.go`, applying data-model.md's Derived redirect decision in order: cache-aside lookup (T007 then T008 on miss, repopulating via T007's `Set`) → not-found if no row → slug-mismatch → 404 (FR-020/FR-021, checked before active/expiry so a wrong slug never reveals link state) → deactivated → 410 (precedence over expiry) → expired → 404 → else `302` with `Location: destination_url` and enqueue a click event (T015) after/independent of sending the response
+- [X] T017 [US1] Register `GET /{code}` and `GET /{code}/{slug}` on the mux in `redirect/cmd/redirect/main.go`, applying the rate limiter (T009) inline at the top of the handler (429 on exceeded, before any lookup) and wiring the click writer (T015) and cache/store clients into the handler (T016)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable/demoable.
 
@@ -86,11 +86,11 @@ recorded without delaying the response.
 ## Phase 4: User Story 2 - Get a clear result for links that can't be followed (Priority: P2)
 
 **Goal**: Requests for codes that never existed, have expired, or have been deactivated (or
-carry a mismatched/unregistered SEO alias) receive the correct distinct outcome — `404` or
+carry a mismatched/unregistered slug) receive the correct distinct outcome — `404` or
 `410` — with no redirect and no click event recorded.
 
 **Independent Test**: Request a nonexistent code, an expired code, a deactivated code, a code
-that's both expired and deactivated, and a valid code with a mismatched or unregistered alias;
+that's both expired and deactivated, and a valid code with a mismatched or unregistered slug;
 confirm each produces its expected status with no `Location` header and no new `click_events`
 row.
 
@@ -104,9 +104,9 @@ if a test here reveals a gap in T016.
 
 - [X] T018 [P] [US2] Contract test for `GET /{code}`: nonexistent code → `404`, expired code → `404`, deactivated code → `410`, both expired and deactivated → `410` (deactivation precedence, FR-008) — using fakes, in `redirect/tests/contract/redirect_notfound_test.go`
 - [X] T019 [P] [US2] Integration test for the same four scenarios against real Postgres (seeded rows per quickstart.md's Setup), additionally asserting no `click_events` row is inserted for any of them, in `redirect/tests/integration/redirect_notfound_test.go`
-- [X] T020 [P] [US2] Integration test for the SEO alias mismatch/unregistered-alias paths (FR-021): a matching alias behaves identically to the bare code; a mismatched alias, an alias on a code with none registered, and an alias segment on a *deactivated* code (must still be `404`, never `410` — data-model.md) all return `404`, in `redirect/tests/integration/redirect_alias_test.go`
+- [X] T020 [P] [US2] Integration test for the slug mismatch/unregistered-slug paths (FR-021): a matching slug behaves identically to the bare code; a mismatched slug, a slug on a code with none registered, and a slug segment on a *deactivated* code (must still be `404`, never `410` — data-model.md) all return `404`, in `redirect/tests/integration/redirect_slug_test.go`
 
-**Checkpoint**: User Stories 1 and 2 both verified; redirect outcomes are fully correct across every code/alias/state combination.
+**Checkpoint**: User Stories 1 and 2 both verified; redirect outcomes are fully correct across every code/slug/state combination.
 
 ---
 
@@ -165,15 +165,15 @@ confirm no ownership/auth check exists.
       `lookupLink` and the redirect handler's active/expiry precedence (410 deactivated before
       404 expired), rate-limited via the same shared limiter, encoding
       `{PublicBaseURL}/{code}` as a 512×512 PNG via `qrcode.Encode`, `Content-Type: image/png`,
-      no alias check and no ownership/auth check (FR-022; contracts/qr.md)
+      no slug check and no ownership/auth check (FR-022; contracts/qr.md)
 - [X] T035 [US4] Register `GET /{code}/qr` on the mux in `redirect/cmd/redirect/main.go`,
       wiring the same cache/store/limiter instances as the redirect handler; document why the
-      literal `qr` segment safely takes precedence over the sibling `/{code}/{alias}` wildcard
+      literal `qr` segment safely takes precedence over the sibling `/{code}/{slug}` wildcard
 - [X] T036 [P] [US4] Contract tests for `GET /{code}/qr` (200+valid PNG, 404 not-found, 410
       deactivated, 404 expired, 429 rate-limited, 503 both-deps-unreachable) using fakes, in
       `redirect/tests/contract/qr_test.go`
 - [X] T037 [P] [US4] Contract test confirming the literal `/{code}/qr` route wins over the
-      `/{code}/{alias}` wildcard at the mux level, in `redirect/tests/contract/mux_test.go`
+      `/{code}/{slug}` wildcard at the mux level, in `redirect/tests/contract/mux_test.go`
 
 **Checkpoint**: All four user stories (including the moved QR one) are independently
 functional; `go build ./...`, `go vet ./...`, and `go test ./tests/contract/...` pass.
@@ -304,7 +304,7 @@ Task: "Implement health checks in redirect/internal/health/health.go"
 
 1. Setup + Foundational → foundation ready
 2. User Story 1 → validate → deploy/demo (MVP)
-3. User Story 2 → validate → deploy/demo (correct not-found/gone/alias-mismatch behavior)
+3. User Story 2 → validate → deploy/demo (correct not-found/gone/slug-mismatch behavior)
 4. User Story 3 → validate → deploy/demo (health checks)
 5. Polish (Phase 6)
 

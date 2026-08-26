@@ -26,16 +26,16 @@
 - [x] CHK012 Are the list route's (`GET /links`) requirements — pagination, ordering, maximum result size — specified, or left undefined? [Gap, contracts/links.md] — resolved: 100/page, newest-first, no separate total cap (FR-020)
 - [x] CHK013 Are authorization-failure (403) responses specified consistently in shape/content across the links, analytics, and QR contracts? [Consistency, contracts/links.md, contracts/analytics.md, contracts/qr.md] — resolved by CHK010's shared Response Body Conventions
 - [x] CHK014 Is the QR response's image format (SVG vs. PNG) a firm requirement, or explicitly left as an implementation choice? [Clarity, Spec §FR-012, contracts/qr.md] — resolved: PNG, ≥512×512px, firm requirement (FR-012)
-- [x] CHK015 Are requirements defined for what create/update return when multiple validation failures occur at once (e.g. malformed URL and a taken alias together)? [Gap, Edge Case] — resolved: all applicable failures reported at once (FR-021)
+- [x] CHK015 Are requirements defined for what create/update return when multiple validation failures occur at once (e.g. malformed URL and a taken slug together)? [Gap, Edge Case] — resolved: all applicable failures reported at once (FR-021)
 - [x] CHK016 Is a requirement/acceptance-criteria ID scheme (FR-xxx/SC-xxx) applied consistently across all contract documents so each can be traced back to the spec? [Traceability] — confirmed consistent
 
 ## Data Model & Cross-Service Consistency
 
 - [x] CHK017 Is the Redis write-through key/value shape specified precisely enough (field names, types) to guarantee interoperability with `redirect/`'s independently-deployed cache reader? [Clarity, data-model.md] — resolved: key `link:{code}`, JSON string value (not a hash), ISO 8601 UTC timestamps; pinned identically in both features' data-model.md/research.md
 - [x] CHK018 Are requirements defined for what happens to already-recorded `click_events` rows when their `code` is later deleted (retained, orphaned, or purged)? [Gap, Spec Edge Cases] — resolved: deleted via FK `ON DELETE CASCADE` (FR-022)
-- [x] CHK019 Is the alias-uniqueness requirement (FR-007) explicit about case-sensitivity and allowed character set, or left undefined? [Ambiguity, Spec §FR-007] — resolved: FR-007 is now a format check (lowercase alphanumeric + hyphens, 3–32 chars), not a uniqueness check at all — the alias/code redesign (Clarifications 2026-08-17) eliminated the uniqueness question entirely
-- [x] CHK020 Are this feature's Short Link field requirements consistent with the fields `redirect/`'s own spec/data-model assume exist? [Consistency, data-model.md] — confirmed consistent, including the new `alias` field pinned identically on both sides
-- [x] CHK021 Is a maximum/allowed length defined for a custom alias and for the destination URL? [Gap] — resolved for alias (3–32 chars, FR-007); destination URL length left as a reasonable implementation default (not scope-defining)
+- [x] CHK019 Is the slug-uniqueness requirement (FR-007) explicit about case-sensitivity and allowed character set, or left undefined? [Ambiguity, Spec §FR-007] — resolved: FR-007 is now a format check (lowercase alphanumeric + hyphens, 3–32 chars), not a uniqueness check at all — the slug/code redesign (Clarifications 2026-08-17) eliminated the uniqueness question entirely
+- [x] CHK020 Are this feature's Short Link field requirements consistent with the fields `redirect/`'s own spec/data-model assume exist? [Consistency, data-model.md] — confirmed consistent, including the new `slug` field pinned identically on both sides
+- [x] CHK021 Is a maximum/allowed length defined for a custom slug and for the destination URL? [Gap] — resolved for slug (3–32 chars, FR-007); destination URL length left as a reasonable implementation default (not scope-defining)
 - [x] CHK022 Are requirements defined for concurrent update attempts on the same link (e.g. two browser tabs saving conflicting changes)? [Gap, Edge Case] — resolved: last-write-wins, no conflict detection (spec.md Edge Cases)
 
 ## User Experience & Scenario Coverage

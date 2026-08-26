@@ -9,15 +9,15 @@
 ## Summary
 
 A stateless Go microservice with exactly three logical endpoints — the redirect lookup
-(`GET /{code}`, and optionally `GET /{code}/{alias}` for a registered SEO alias), a QR-code
+(`GET /{code}`, and optionally `GET /{code}/{slug}` for a registered slug), a QR-code
 image for the same code (`GET /{code}/qr`), and `GET /health`. Redirects use a cache-aside
 pattern: Redis first, Postgres on miss (repopulating Redis on the way out); Postgres remains
 the fallback of record so Redis can run `allkeys-lru` eviction with no correctness risk. Click
 events are recorded to Postgres via a non-blocking, in-process async writer so they add no
 latency to the redirect response. A single, environment-configurable global rate limiter and
-status logic (404 not-found/expired/alias-mismatch, 410 deactivated) are applied inline in the
+status logic (404 not-found/expired/slug-mismatch, 410 deactivated) are applied inline in the
 handlers — no auth or request-validation middleware, since the service is intentionally
-unauthenticated, public, and has no write endpoints; the two narrow exceptions are the alias
+unauthenticated, public, and has no write endpoints; the two narrow exceptions are the slug
 equality check and the QR endpoint, both carved out explicitly in constitution Principle II.
 Ships as a single static binary in a minimal Docker image, safe to run as many identical,
 horizontally scaled instances with no shared state beyond Redis/Postgres.
@@ -66,7 +66,7 @@ environment variables at startup rather than hardcoded (constitution: no hardcod
 parameters)
 
 **Scale/Scope**: Exactly 3 logical endpoints (`GET /{code}` with an optional trailing
-`/{alias}` segment, `GET /{code}/qr`, and `GET /health`); no other endpoints, ever
+`/{slug}` segment, `GET /{code}/qr`, and `GET /health`); no other endpoints, ever
 
 ## Constitution Check
 
@@ -75,10 +75,10 @@ parameters)
 | Principle | Status | Notes |
 |---|---|---|
 | I. Independent, Non-Overlapping Components | PASS | This plan touches only `redirect/`; no dependency on `ui/` source, no shared code. |
-| II. Redirect Is a Minimal Read-Path Service | PASS | Exactly `GET /{code}` (optionally with a trailing `/{alias}` segment), `GET /{code}/qr`, and `GET /health`; no create/update/delete/list; no auth; no validation beyond the code lookup itself plus the two constitution-carved-out exceptions — the alias-equality check (FR-020/FR-021) and the QR endpoint reusing the same lookup/status rules with no new business logic (FR-022). |
+| II. Redirect Is a Minimal Read-Path Service | PASS | Exactly `GET /{code}` (optionally with a trailing `/{slug}` segment), `GET /{code}/qr`, and `GET /health`; no create/update/delete/list; no auth; no validation beyond the code lookup itself plus the two constitution-carved-out exceptions — the slug-equality check (FR-020/FR-021) and the QR endpoint reusing the same lookup/status rules with no new business logic (FR-022). |
 | III. Cache-Aside Reads, Postgres as Source of Truth | PASS | Redis-first, Postgres-fallback-and-repopulate as designed; Redis is disposable (`allkeys-lru`), Postgres remains authoritative; redirects keep working if Redis is down. |
 | IV. Non-Blocking Click Recording | PASS | Click events go through an in-process async writer (buffered channel + background goroutine); failures never surface to the client; see research.md for the accepted at-most-effort tradeoff. |
-| V. UI Owns Writes and Business Logic | PASS | `redirect/` remains read-only; it only applies the configurable global rate limit, the alias-equality check, and the 404/410 status rules that fall directly out of serving a lookup, not business validation. Alias format/uniqueness rules live entirely in `ui/`. |
+| V. UI Owns Writes and Business Logic | PASS | `redirect/` remains read-only; it only applies the configurable global rate limit, the slug-equality check, and the 404/410 status rules that fall directly out of serving a lookup, not business validation. Slug format/uniqueness rules live entirely in `ui/`. |
 | VI. Simplicity Over Abstraction | PASS | stdlib `net/http` chosen over chi (no framework needed for 2 routes); direct `pgx`/`go-redis` clients, no repository/service-layer indirection; rate limiter applied inline, not as a middleware chain. |
 | VII. Test-First Delivery | PASS (commitment) | Contract tests (httptest) and integration tests (testcontainers-go, real Redis+Postgres) are scoped in Project Structure below and required before any task is marked complete in `/speckit-tasks` → `/speckit-implement`. |
 
@@ -93,16 +93,16 @@ described as hardcoded, is now read from environment variables at startup (const
 hardcoded tunable parameters) — still a single in-process `*rate.Limiter`, just configured
 rather than compiled in.
 
-**Resolved (2026-08-17), constitution v3.0.0**: Added support for an optional SEO-alias path
-segment (`GET /{code}/{alias}`), carved out in the constitution as a narrow exception to "no
+**Resolved (2026-08-17), constitution v3.0.0**: Added support for an optional SEO-slug path
+segment (`GET /{code}/{slug}`), carved out in the constitution as a narrow exception to "no
 validation beyond code lookup" — an exact-equality check against a field already fetched as
 part of the same lookup, not general validation.
 
 **Resolved (2026-08-24), constitution v6.0.0**: Added `GET /{code}/qr`, moved here from `ui/`
 at the user's explicit request. A literal `qr` path segment takes precedence over the sibling
-`/{code}/{alias}` wildcard under Go 1.22+ `net/http.ServeMux`'s specificity rules (verified in
-`tests/contract/mux_test.go`); this can never collide with a real alias since the alias format
-rule requires at least 3 characters, making the 2-character `"qr"` an impossible alias value
+`/{code}/{slug}` wildcard under Go 1.22+ `net/http.ServeMux`'s specificity rules (verified in
+`tests/contract/mux_test.go`); this can never collide with a real slug since the slug format
+rule requires at least 3 characters, making the 2-character `"qr"` an impossible slug value
 independent of the route. The endpoint shares the redirect handler's `lookupLink` function
 (extracted from `internal/handler/redirect.go` once a second concrete caller existed) and its
 active/expiry status precedence, applying no ownership or auth check per FR-022.
@@ -138,10 +138,10 @@ redirect/
 │       └── main.go          # wires config, Redis/Postgres clients, rate limiter, click
 │                             # writer, and the http.ServeMux; starts the server
 ├── internal/
-│   ├── handler/              # GET /{code}[/{alias}], GET /{code}/qr, and GET /health HTTP
+│   ├── handler/              # GET /{code}[/{slug}], GET /{code}/qr, and GET /health HTTP
 │   │                          # handlers — redirect.go and qr.go share lookupLink() (added
 │   │                          # constitution v6.0.0)
-│   ├── linkcache/             # Redis cache-aside: Get(code), Set(code, link) — link includes alias
+│   ├── linkcache/             # Redis cache-aside: Get(code), Set(code, link) — link includes slug
 │   ├── linkstore/              # Postgres fallback lookup: GetByCode(code)
 │   ├── clickwriter/            # non-blocking async click recorder (channel + goroutine)
 │   ├── ratelimit/               # in-process global token-bucket wrapper

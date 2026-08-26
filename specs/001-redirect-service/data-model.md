@@ -15,15 +15,15 @@ The record a code is resolved against. Written and owned elsewhere; this service
 | `destination_url` | string | Where a valid request is redirected to. |
 | `is_active` | boolean | `false` means deactivated → serve 410, regardless of expiration. |
 | `expires_at` | timestamp, nullable | `null` means never expires. Past-dated and active → serve 404. |
-| `alias` | string, nullable | Optional SEO alias (FR-020/FR-021). `null` means no alias is registered for this code. Format/uniqueness rules are `ui/`'s concern (`ui/`'s data-model.md); this service only ever compares it for exact equality. |
+| `slug` | string, nullable | Optional slug (FR-020/FR-021). `null` means no slug is registered for this code. Format/uniqueness rules are `ui/`'s concern (`ui/`'s data-model.md); this service only ever compares it for exact equality. |
 
 **Derived redirect decision** (evaluated in this order, per spec FR-005–FR-008, FR-020,
 FR-021):
 
 1. No row found (Redis miss + Postgres miss) → **404 not found**.
 2. Row found, request included a second path segment, and it does not exactly equal the row's
-   `alias` (including the case where `alias` is `null`) → **404 not found** (FR-021) —
-   evaluated before the checks below, since a wrong alias means "this isn't the resource you
+   `slug` (including the case where `slug` is `null`) → **404 not found** (FR-021) —
+   evaluated before the checks below, since a wrong slug means "this isn't the resource you
    think it is," regardless of the code's own state.
 3. Row found, `is_active = false` → **410 gone** (deactivation takes precedence — checked
    before expiration).
@@ -39,13 +39,13 @@ force every field to a string on both sides of the Go/TypeScript boundary, invit
 boolean/timestamp encoding mismatches) with exactly:
 
 ```json
-{"destination_url": "https://example.com", "is_active": true, "expires_at": "2026-08-20T00:00:00Z", "alias": "my-article-title"}
+{"destination_url": "https://example.com", "is_active": true, "expires_at": "2026-08-20T00:00:00Z", "slug": "my-article-title"}
 ```
 
-`expires_at` and `alias` are both `null` (JSON null, not an empty string/omitted key) when not
+`expires_at` and `slug` are both `null` (JSON null, not an empty string/omitted key) when not
 set. `expires_at`, when set, is an ISO 8601 UTC timestamp — parseable natively by both Go's
-`time.RFC3339` and JavaScript's `Date`. Including `alias` in the cached value is what lets the
-alias-match check (FR-020/FR-021) be served entirely from cache, with no second lookup — this
+`time.RFC3339` and JavaScript's `Date`. Including `slug` in the cached value is what lets the
+slug-match check (FR-020/FR-021) be served entirely from cache, with no second lookup — this
 is enough to make the full decision above from cache alone. A cache write happens only after a
 successful Postgres lookup (FR-004); nothing is cached for a miss (a Postgres miss simply
 results in a 404 with no cache entry written).

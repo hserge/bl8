@@ -142,10 +142,10 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
   limit are rejected with a distinct response rather than being queued or silently dropped,
   and this applies uniformly to all requesters rather than per-visitor.
 - What happens when a request is made for a route other than `GET /{code}`,
-  `GET /{code}/{alias}`, or `GET /health`? No such routes exist; the service has no other
+  `GET /{code}/{slug}`, or `GET /health`? No such routes exist; the service has no other
   endpoints to handle.
-- What happens when `GET /{code}/{alias}` is requested with an alias that doesn't match the
-  code's registered alias, or the code has no alias registered? The service reports the link
+- What happens when `GET /{code}/{slug}` is requested with a slug that doesn't match the
+  code's registered slug, or the code has no slug registered? The service reports the link
   as not found (404) — same as an unrecognized code — rather than falling back to a bare-code
   redirect (FR-021).
 - What happens if writing the freshly-looked-up mapping back into the cache fails? The
@@ -192,13 +192,13 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
 - **FR-018**: The service MUST NOT perform request validation beyond looking up the supplied
   code (no format, schema, or content validation of the code or any other input).
 - **FR-019**: The service MUST expose no routes other than the redirect route (with or without
-  a trailing SEO-alias segment, per FR-020/FR-021), the QR route (FR-022), and the health route.
+  a trailing SEO-slug segment, per FR-020/FR-021), the QR route (FR-022), and the health route.
 - **FR-020**: The service MUST also accept an optional second path segment on the redirect
-  route (`GET /{code}/{alias}`) representing an SEO alias. When present, the service MUST
-  compare it for exact equality against the looked-up link's registered alias (already fetched
+  route (`GET /{code}/{slug}`) representing a slug. When present, the service MUST
+  compare it for exact equality against the looked-up link's registered slug (already fetched
   as part of the same lookup) before redirecting.
-- **FR-021**: When the supplied alias does not exactly match the code's registered alias — or
-  the code has no registered alias at all — the service MUST report the link as not found
+- **FR-021**: When the supplied slug does not exactly match the code's registered slug — or
+  the code has no registered slug at all — the service MUST report the link as not found
   (404), the same as an unrecognized code (spec.md Edge Cases).
 - **FR-022**: The service MUST provide a route, `GET /{code}/qr`, that returns a PNG image
   (at least 512×512px) encoding the code's canonical short URL, applying the exact same
@@ -217,7 +217,7 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
 - **Short Link**: The record a code is resolved against. Represents the mapping from a short
   code to a destination URL, plus the state needed to decide whether it can currently be
   followed: whether it is active or deactivated, whether/when it expires, and an optional SEO
-  alias (FR-020/FR-021) used only for the trailing-segment equality check, never for lookup.
+  slug (FR-020/FR-021) used only for the trailing-segment equality check, never for lookup.
   Owned and written by systems outside this service; this service only reads it.
 - **Click Event**: A record that a short code was successfully resolved and redirected.
   Represents at minimum which code was followed and when. Written by this service, but its
@@ -256,8 +256,8 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
 - The global rate limit's exact threshold is set via operator-controlled configuration (e.g.
   environment variables), not a per-link or per-user setting, and the specific value is not
   part of this specification's scope (constitution: no hardcoded tunable parameters).
-- The SEO alias is set and formatted (charset, length) entirely by `ui/`; this service never
-  validates alias format, only compares the supplied path segment against the stored value for
+- The slug is set and formatted (charset, length) entirely by `ui/`; this service never
+  validates slug format, only compares the supplied path segment against the stored value for
   exact equality.
 - "Reachable" for the health check means the service can successfully establish a connection
   to and get a response from the cache and durable storage, not that every operation against

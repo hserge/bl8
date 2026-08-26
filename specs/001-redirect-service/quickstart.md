@@ -19,10 +19,10 @@ below.
    dev instances).
 2. Seed rows in the links table directly in Postgres:
    - `code = "hello"`, `destination_url = "https://example.com"`, `is_active = true`,
-     `expires_at = null`, `alias = null`
+     `expires_at = null`, `slug = null`
    - `code = "gone"`, same destination, `is_active = false` (deactivated)
    - `code = "old"`, same destination, `is_active = true`, `expires_at` in the past (expired)
-   - `code = "seo"`, same destination, `is_active = true`, `alias = "my-article-title"`
+   - `code = "seo"`, same destination, `is_active = true`, `slug = "my-article-title"`
 3. Set the service's Redis/Postgres connection configuration and rate-limit thresholds (env
    vars, per `cmd/redirect`) and run it: `go run ./cmd/redirect`.
 
@@ -57,17 +57,17 @@ curl -i http://localhost:PORT/gone             # expect 410 (deactivated)
 Expected: exact status codes above, no `Location` header, no click event recorded for any of
 these three (verify no new row is written to click_events for these codes).
 
-## Validate: SEO alias match and mismatch
+## Validate: slug match and mismatch
 
 ```bash
 curl -i http://localhost:PORT/seo/my-article-title   # expect 302, same destination as bare /seo
 curl -i http://localhost:PORT/seo/wrong-slug          # expect 404
-curl -i http://localhost:PORT/hello/anything          # expect 404 (code "hello" has no registered alias)
+curl -i http://localhost:PORT/hello/anything          # expect 404 (code "hello" has no registered slug)
 ```
 
-Expected: a matching alias behaves identically to the bare code; any mismatch — including any
-alias at all on a code with none registered — is a flat 404, never a redirect and never a 410
-(even for the deactivated `gone` code, an alias mismatch there should still be 404, not 410).
+Expected: a matching slug behaves identically to the bare code; any mismatch — including any
+slug at all on a code with none registered — is a flat 404, never a redirect and never a 410
+(even for the deactivated `gone` code, a slug mismatch there should still be 404, not 410).
 
 ## Validate: click recording never blocks the redirect (User Story 1)
 

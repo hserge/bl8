@@ -139,8 +139,8 @@ counter Redis already provides.
 
 **Decision**: `qrcode` npm package, generating a PNG at least 512×512px (`Content-Type:
 image/png`) server-side in the `[code]/qr/+server.ts` route, encoding the link's short URL on
-the `bl8.us` domain (e.g. `https://bl8.us/{code}` or `https://bl8.us/{code}/{alias}` if an
-alias is set) (FR-012).
+the `bl8.us` domain (e.g. `https://bl8.us/{code}` or `https://bl8.us/{code}/{slug}` if an
+slug is set) (FR-012).
 
 **Rationale**: Small, focused, widely-used library for exactly this one job; no server-side
 rendering pipeline or external service needed. PNG at a fixed, sufficiently high resolution was
@@ -157,9 +157,9 @@ longer has a QR route at all: the `qrcode`/`@types/qrcode`/`jsqr`/`@types/pngjs`
 packages, `src/routes/links/[code]/qr/+server.ts`, and its tests
 (`tests/server/links-qr.test.ts`, `tests/e2e/qr-code.spec.ts`) are removed. `ui/`'s link detail
 page now just links to/embeds `redirect/`'s public endpoint via a new
-`src/lib/shortUrl.ts:buildQrImageUrl(code)` helper (`{domain}/{code}/qr`) — no alias variant,
+`src/lib/shortUrl.ts:buildQrImageUrl(code)` helper (`{domain}/{code}/qr`) — no slug variant,
 matching what was actually built here before the move (the decision text above described an
-unbuilt alias branch; the real `qr/+server.ts` only ever encoded `https://bl8.us/{code}`, and
+unbuilt slug branch; the real `qr/+server.ts` only ever encoded `https://bl8.us/{code}`, and
 the new `redirect/` endpoint preserves that same code-only behavior, not the aspirational one).
 The prior ownership/auth check (401/403) is gone, since `redirect/` performs no authentication
 by rule and the encoded URL is already public via the redirect route itself — see
@@ -167,7 +167,7 @@ by rule and the encoded URL is already public via the redirect route itself — 
 
 ## Testing strategy
 
-**Decision**: Vitest for unit tests (`urlSafety`, alias-format validation, rate-limit key
+**Decision**: Vitest for unit tests (`urlSafety`, slug-format validation, rate-limit key
 logic) and server-route tests (form actions, load functions, using a real test Postgres +
 Redis, not mocks, for the same reason as `redirect/`'s plan: the value here is in the real
 interaction with the database and cache). Playwright for end-to-end coverage of each user
@@ -185,7 +185,7 @@ this on same-site form POSTs; `@auth/sveltekit` intentionally disables Auth.js's
 CSRF-token-cookie flow in favor of it).
 
 **Rationale**: Constitution Principle VII requires tests before a feature is done. Given how
-much of this app's correctness lives in database constraints (code uniqueness, alias format),
+much of this app's correctness lives in database constraints (code uniqueness, slug format),
 Redis write-through, and ownership scoping, integration-style tests against real Postgres/Redis
 catch what pure unit tests with mocks would miss.
 
@@ -316,7 +316,7 @@ no manual override — rejected per the user's explicit clarification requiring 
 palette expressed as shadcn-svelte's semantic OKLCH token set (`--background`,
 `--foreground`, `--primary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`,
 `--ring`, etc.) in `:root`, alongside the existing dark palette's *intent* — reclaimed
-hyperlink-blue as `--primary`, amber reserved for the alias/SEO badge accent, desaturated
+hyperlink-blue as `--primary`, amber reserved for the slug/SEO badge accent, desaturated
 green/red for active/inactive status — re-expressed as the `.dark` scope's token values (not
 copied byte-for-byte, since the prior hex values were hand-tuned for a bespoke `@theme` block,
 not shadcn-svelte's token names or OKLCH format).
@@ -363,7 +363,7 @@ above (which predates the reference images) rather than sitting alongside it.
   treatment is **dropped**: neither reference rendered a short link's code in a
   code-styled/monospace font — the layout reference's own "URL Shortener" feature card showed
   a short link in the same plain sans as everything else — so per the constitution's "extend
-  the same visual language" rule for anything not directly shown, short codes/aliases render in
+  the same visual language" rule for anything not directly shown, short codes/slugs render in
   the same body sans, not a distinct monospace face.
 - **Structure/orientation** (from the layout reference): a full-bleed dark-navy hero band
   holding the nav, a centered headline, and a floating white card containing a tabbed "Short
@@ -417,9 +417,9 @@ intent rather than discarding it:
 - **Already signed in** (e.g. a returning user lands on `/` while authenticated): submitting
   the form creates the link immediately and redirects straight to its detail/result page —
   identical behavior to the existing `/links/new` action, just entered from `/` instead.
-- **Signed out**: the submitted URL (and alias/expiration, if provided) are carried as query
+- **Signed out**: the submitted URL (and slug/expiration, if provided) are carried as query
   parameters into the Google sign-in redirect's `callbackUrl` (e.g.
-  `/links/new?url=...&alias=...&expiresAt=...`). "Ask to login" is Google's own consent
+  `/links/new?url=...&slug=...&expiresAt=...`). "Ask to login" is Google's own consent
   screen — no separate custom prompt UI. On return, `/links/new`'s server `load` detects the
   carried parameters for an authenticated session and completes the creation server-side
   (no client-side auto-submit needed, so it works with JS disabled too), redirecting to the
@@ -490,7 +490,7 @@ typefaces (NAN and Font Bureau respectively) this project has no license for and
 via Google Fonts the way `Inter`/`Plus Jakarta Sans` were. The constitution itself anticipates
 exactly this by naming fallbacks: **Inter** (already loaded) for `--font-sans`/`--font-display`,
 and **JetBrains Mono** for `--font-mono`. This also reintroduces monospace styling for short
-codes/aliases — dropped in the Stratus/Bitly-era decision above — since the source spec
+codes/slugs — dropped in the Stratus/Bitly-era decision above — since the source spec
 explicitly calls out its mono face for "code/data," and a short code is exactly that; the
 earlier rationale for dropping it (neither old reference used monospace) no longer applies once
 the reference itself changed. Display headings use tight/negative letter-spacing (Tailwind's
@@ -559,7 +559,7 @@ the URL summary alone, and adds one token that summary didn't surface:
   specifically for that purpose (distinct from the general-purpose Mint Signal action color),
   it's added as its own token — `--color-code` in the `@theme inline` block — and used for the
   monospace short-code chip's text color specifically (link list, link detail, the create-form
-  alias preview), giving a visual distinction between "this is an identifier" (blue) and "this
+  slug preview), giving a visual distinction between "this is an identifier" (blue) and "this
   is an action" (mint) that the flat single-accent approach above didn't have.
 - Also newly available: the exact 4px-based spacing scale (4/8/12/16/20/24/32/40/48/60/64/96px)
   and the `--r-tag: 4px` radius tier (for small badges/tags, distinct from the 8px
@@ -696,7 +696,7 @@ content:
   style, not six card-shaped placeholders.
 - **How it works**: adopt the numbered three-step structural pattern (`01`/`02`/`03`, heading,
   one-sentence description per step) with truthful copy describing bl8's actual flow: paste a
-  URL, optionally set a custom alias, share and track — this is a real sequence (order carries
+  URL, optionally set a custom slug, share and track — this is a real sequence (order carries
   information: validation happens before customization happens before the link is live), so the
   numbered-step device is appropriate here, not decorative.
 - **"For developers" / API section**: **omitted entirely** — bl8 has no public REST API in

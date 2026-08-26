@@ -23,19 +23,19 @@ pnpm run dev                 # or: docker compose up ui (Dockerized dev target)
 ## Validate: create a link (User Story 1)
 
 1. Sign in with Google (or the test OIDC provider in dev/CI).
-2. Submit a valid long URL with no alias → expect a new link with a generated code, visible
+2. Submit a valid long URL with no slug → expect a new link with a generated code, visible
    immediately in `GET /links`.
-3. Submit another valid long URL with a well-formed SEO alias (e.g. `my-article-title`) →
-   expect a new link with its own generated code, the alias attached, resolvable at both
+3. Submit another valid long URL with a well-formed slug (e.g. `my-article-title`) →
+   expect a new link with its own generated code, the slug attached, resolvable at both
    `/{code}` and `/{code}/my-article-title`.
-4. Submit a URL with a malformed alias (e.g. `AB`, too short, or containing `_`) → expect
+4. Submit a URL with a malformed slug (e.g. `AB`, too short, or containing `_`) → expect
    rejection (FR-007), no link created.
 5. Submit a malformed URL (e.g. `not a url`) → expect rejection (FR-005), no link created.
 6. Submit a URL with a disallowed scheme (e.g. `javascript:alert(1)`) or targeting an internal
    address → expect rejection (FR-006), no link created.
 
 Confirm in Redis (`redis-cli GET` on the write-through key) that each successfully created
-link's mapping — including its `alias` field — appears immediately; this is what `redirect/`
+link's mapping — including its `slug` field — appears immediately; this is what `redirect/`
 will read on its next
 cache-aside lookup, without waiting for a cache miss (FR-014).
 
@@ -134,7 +134,7 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
    focus rings — not the prior teal-green-on-white Stratus palette.
 2. Switch to dark mode → expect an Abyss (`#0d1726`) page background with Inkwell-Navy
    (`#1a2b3b`) cards, light-neutral text, and the same Mint-Signal accent.
-3. Confirm short codes and aliases (links list, link detail, the create-form preview line)
+3. Confirm short codes and slugs (links list, link detail, the create-form preview line)
    render in a monospace face (JetBrains Mono) — reintroduced in this amendment, distinct from
    the surrounding Inter body text.
 4. Confirm "Voltage" yellow (`#e4ff33`) appears *only* in the full-bleed announcement bar at
@@ -178,7 +178,7 @@ curl -i http://localhost:PORT/status   # expect the page to show Postgres as unr
 
 ## Automated tests
 
-- Unit tests: `pnpm run test:unit` (Vitest) — `urlSafety`, alias-format validation, rate-limit
+- Unit tests: `pnpm run test:unit` (Vitest) — `urlSafety`, slug-format validation, rate-limit
   key logic, session `maxAge` config.
 - Server-route tests: `pnpm run test:unit -- tests/server` (Vitest, against real Postgres +
   Redis via testcontainers — requires Docker).

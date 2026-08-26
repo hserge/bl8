@@ -21,7 +21,7 @@ matches the incoming `google_subject_id` (FR-016) — there is no separate regis
 | Field | Type | Notes |
 |---|---|---|
 | `code` | string (PK) | Always system-generated (spec.md Assumptions); globally unique across all users — this is exactly the key `redirect/`'s data-model.md reads. Never user-chosen. |
-| `alias` | string, nullable | Optional cosmetic SEO alias tied 1:1 to this `code` (FR-003); lowercase alphanumeric + hyphens, 3–32 characters (FR-007). No uniqueness constraint — different links (even different owners) may share the same alias text, since it's never a lookup key. |
+| `slug` | string, nullable | Optional cosmetic slug tied 1:1 to this `code` (FR-003); lowercase alphanumeric + hyphens, 3–32 characters (FR-007). No uniqueness constraint — different links (even different owners) may share the same slug text, since it's never a lookup key. |
 | `owner_id` | identifier (FK → User Account) | Scopes every read/update/delete/analytics/QR action (FR-010). |
 | `destination_url` | string | Must pass structural validation before being stored (FR-005, FR-006). |
 | `is_active` | boolean | Defaults `true` on create; flipped via update (FR-008) — this is the deactivation mechanism (spec.md Assumptions). Matches `redirect/`'s `is_active` field exactly. |
@@ -30,7 +30,7 @@ matches the incoming `google_subject_id` (FR-016) — there is no separate regis
 | `updated_at` | timestamp | Set on every update. |
 
 **Uniqueness constraint**: `code` is globally unique (a database unique constraint, not an
-application-level check alone) — this is what makes concurrent code generation safe. `alias`
+application-level check alone) — this is what makes concurrent code generation safe. `slug`
 has no uniqueness constraint at all (FR-007 is a format check, not a uniqueness check).
 
 **Deletion**: Hard delete (spec.md Assumptions) — the row is removed entirely, distinct from
@@ -61,11 +61,11 @@ expects to read (its data-model.md — this is a shared contract; changes are a 
 boundary per constitution Principle I): key `link:{code}`, value a single JSON string:
 
 ```json
-{"destination_url": "https://example.com", "is_active": true, "expires_at": "2026-08-20T00:00:00Z", "alias": "my-article-title"}
+{"destination_url": "https://example.com", "is_active": true, "expires_at": "2026-08-20T00:00:00Z", "slug": "my-article-title"}
 ```
 
-`expires_at` and `alias` are both JSON `null` when not set, otherwise `expires_at` is an ISO
-8601 UTC timestamp and `alias` is the raw alias string. Set via Redis `SET` (not a hash), so
+`expires_at` and `slug` are both JSON `null` when not set, otherwise `expires_at` is an ISO
+8601 UTC timestamp and `slug` is the raw slug string. Set via Redis `SET` (not a hash), so
 both this app (TypeScript) and `redirect/` (Go) encode/decode the same unambiguous JSON on
 either end, with no boolean/timestamp string-coercion surprises (resolved 2026-08-17).
 
