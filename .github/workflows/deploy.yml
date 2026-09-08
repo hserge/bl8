@@ -18,6 +18,12 @@ jobs:
   # never publish a `:latest` (or any) tag, let alone deploy, from unreviewed/untrusted code.
   build-and-push:
     runs-on: ubuntu-latest
+    # This repo's default GITHUB_TOKEN permissions are read-only (Settings > Actions > General),
+    # so pushing a new image package to ghcr.io needs packages: write scoped explicitly here
+    # rather than loosening that repo-wide default for every workflow.
+    permissions:
+      contents: read
+      packages: write
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
