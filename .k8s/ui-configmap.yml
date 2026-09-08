@@ -1,0 +1,25 @@
+# Non-secret runtime config for bl8-ui. Secrets (DATABASE_URL, REDIS_URL, AUTH_SECRET,
+# GOOGLE_CLIENT_ID/SECRET) are created separately by the deploy workflow as a Secret named
+# bl8-ui-secrets — see ui/README.md's "Environment variables" and ui/.env.example for the full
+# list this splits across the two.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bl8-ui-config
+  namespace: bl8
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  # adapter-node needs this to build correct absolute URLs (redirects, form actions) when
+  # running behind the ingress rather than accessed directly — see ui/vite.config.ts's adapter
+  # setup (plain adapter(), no origin baked in at build time).
+  ORIGIN: "https://admin.bl8.us"
+  # Where redirect/ is actually reachable — used to build short-link/QR-code URLs. Defaults to
+  # this already if unset, but set explicitly so it's visible here rather than relying on the
+  # code's own fallback.
+  PUBLIC_REDIRECT_BASE_URL: "https://bl8.us"
+  RATE_LIMIT_MAX: "20"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+  STATUS_CHECK_INTERVAL_SECONDS: "60"
+  PUBLIC_SEARCH_MIN_CHARS: "3"
+  PUBLIC_SEARCH_DEBOUNCE_MS: "1000"

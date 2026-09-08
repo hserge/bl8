@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bl8-ui-pdb
+  namespace: bl8
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bl8-ui
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bl8-redirect-pdb
+  namespace: bl8
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bl8-redirect

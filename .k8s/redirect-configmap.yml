@@ -1,0 +1,21 @@
+# Non-secret runtime config for bl8-redirect. Secrets (DATABASE_URL, REDIS_PASSWORD) are
+# created separately by the deploy workflow as a Secret named bl8-redirect-secrets — see
+# redirect/README.md's "Environment variables" for the full list this splits across the two.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bl8-redirect-config
+  namespace: bl8
+data:
+  PORT: "8080"
+  PUBLIC_BASE_URL: "https://bl8.us"
+  QR_LOGO_ENABLED: "true"
+  # internal/ratelimit is deliberately per-instance, not fleet-wide (see its own package
+  # comment) — with redirect-deployment.yml's 2 replicas, the effective combined ceiling
+  # across the Service is roughly 2x this value, not exactly this value. Divide your real
+  # target by the replica count if that matters, rather than being surprised traffic sails
+  # past what this number alone suggests.
+  RATE_LIMIT_RPS: "50"
+  RATE_LIMIT_BURST: "100"
+  CLICK_QUEUE_SIZE: "1000"
+  CLICK_WRITE_TIMEOUT_MS: "3000"

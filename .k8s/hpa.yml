@@ -1,0 +1,42 @@
+# Requires the metrics-server k3s already bundles by default — nothing extra to install.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bl8-ui-hpa
+  namespace: bl8
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bl8-ui
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bl8-redirect-hpa
+  namespace: bl8
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bl8-redirect
+  # Higher ceiling than bl8-ui: this is the highest-traffic endpoint in the system (every
+  # redirect + QR request), not an occasional link-management action.
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
