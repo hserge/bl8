@@ -13,10 +13,15 @@
 # which @auth/sveltekit@1.11.3 hardcodes to its default /auth/* prefix regardless of any custom
 # basePath config (see src/lib/server/auth.ts's comment); routing /auth here directly, rather
 # than fighting the library, is simpler than it looks since these are framework-internal
-# endpoints, not user-facing admin pages. Every other path (bl8.us/{code}) falls through to
-# bl8-redirect. nginx-ingress evaluates an exact match and longer prefixes before a shorter
-# prefix, so listing /admin, /auth, and the exact "/" ahead of the catch-all "/" prefix here is
-# enough — no explicit priority annotation needed.
+# endpoints, not user-facing admin pages. /_app (SvelteKit's build output — every JS/CSS chunk
+# the landing page's own HTML references), /images (ui/static/images), and /robots.txt
+# (ui/static/robots.txt) also go to bl8-ui for the same reason the landing page's HTML itself
+# does: only the *exact* "/" matches the bare-root rule below, so without these, every asset the
+# landing page loads would otherwise fall through to the catch-all and 404 against bl8-redirect
+# — which is exactly what happened before these were added (page loaded with zero CSS/JS).
+# Every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress evaluates an
+# exact match and longer prefixes before a shorter prefix, so listing these ahead of the
+# catch-all "/" prefix here is enough — no explicit priority annotation needed.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -49,6 +54,27 @@ spec:
                   number: 80
           - path: /auth
             pathType: Prefix
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /_app
+            pathType: Prefix
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /images
+            pathType: Prefix
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /robots.txt
+            pathType: Exact
             backend:
               service:
                 name: bl8-ui

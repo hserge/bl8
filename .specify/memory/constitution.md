@@ -276,10 +276,14 @@ risk. A feature without tests is not done.
   reserved prefix rather than living under `/admin/auth/*` — `@auth/sveltekit`'s installed
   version hardcodes Auth.js's own routes to its default `/auth/*` regardless of any custom
   `basePath` config (see `ui/src/lib/server/auth.ts`'s comment), so the ingress routes that path
-  directly instead of fighting the library. `redirect/`'s own path namespace MUST therefore avoid
-  colliding with either `/admin` or `/auth` — a code that happened to be literally `admin` or
-  `auth` would be unreachable as a short link, an acceptable, narrow carve-out rather than a
-  namespacing scheme either component has to actively coordinate on day to day. This is what
+  directly instead of fighting the library. `/_app` (SvelteKit's own build-output prefix),
+  `/images` and `/robots.txt` (`ui/static/`'s contents) are reserved the same way, for the same
+  reason: only the exact bare `/` routes to `ui/`, so without these, every asset the landing
+  page's own HTML references would fall through to the catch-all and 404 against `redirect/`
+  instead. `redirect/`'s own path namespace MUST therefore avoid colliding with `/admin`, `/auth`,
+  `/_app`, `/images`, or `/robots.txt` — a code that happened to match one of these would be
+  unreachable as a short link, an acceptable, narrow carve-out rather than a namespacing scheme
+  either component has to actively coordinate on day to day. This is what
   makes Principle I's independence concrete at the deployment level, not just at the code level:
   two backend Services behind one Ingress, not two components that happen to share a path prefix
   scheme.
