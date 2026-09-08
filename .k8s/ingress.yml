@@ -35,6 +35,12 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     acme.cert-manager.io/http01-edit-in-place: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Auth.js's JWT session cookie (src/lib/server/auth.ts's session.strategy: 'jwt') gets large
+    # enough right after a Google sign-in — sometimes chunked across multiple Set-Cookie headers
+    # — that nginx's default 4k/8k proxy buffers overflow, failing with "upstream sent too big
+    # header" (a real 502 seen in practice, immediately after the OAuth callback redirect).
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
     nginx.ingress.kubernetes.io/server-snippet: |
       set $redirect 0;
       if ($scheme = http) { set $redirect 1; }
