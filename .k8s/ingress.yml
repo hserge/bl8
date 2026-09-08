@@ -14,14 +14,18 @@
 # basePath config (see src/lib/server/auth.ts's comment); routing /auth here directly, rather
 # than fighting the library, is simpler than it looks since these are framework-internal
 # endpoints, not user-facing admin pages. /_app (SvelteKit's build output — every JS/CSS chunk
-# the landing page's own HTML references), /images (ui/static/images), and /robots.txt
-# (ui/static/robots.txt) also go to bl8-ui for the same reason the landing page's HTML itself
-# does: only the *exact* "/" matches the bare-root rule below, so without these, every asset the
-# landing page loads would otherwise fall through to the catch-all and 404 against bl8-redirect
-# — which is exactly what happened before these were added (page loaded with zero CSS/JS).
-# Every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress evaluates an
-# exact match and longer prefixes before a shorter prefix, so listing these ahead of the
-# catch-all "/" prefix here is enough — no explicit priority annotation needed.
+# the landing page's own HTML references) and /images (ui/static/images) also go to bl8-ui for
+# the same reason the landing page's HTML itself does: only the *exact* "/" matches the
+# bare-root rule below, so without these, every asset the landing page loads would otherwise
+# fall through to the catch-all and 404 against bl8-redirect — which is exactly what happened
+# before these were added (page loaded with zero CSS/JS). /robots.txt (ui/static/robots.txt) is
+# NOT listed here on purpose — ingress-nginx's admission webhook rejects any path containing a
+# dot regardless of pathType ("path /robots.txt cannot be used with pathType Exact/Prefix"), so
+# it falls through to the bl8-redirect catch-all and 404s; a missing robots.txt is a standard,
+# harmless default (crawlers treat it as "no restrictions"), not worth routing around the
+# webhook for. Every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress
+# evaluates an exact match and longer prefixes before a shorter prefix, so listing these ahead of
+# the catch-all "/" prefix here is enough — no explicit priority annotation needed.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -67,13 +71,6 @@ spec:
                 port:
                   number: 80
           - path: /images
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /robots.txt
             pathType: Prefix
             backend:
               service:
