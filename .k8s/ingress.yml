@@ -1,11 +1,17 @@
 # ingress-nginx (this cluster's controller). TLS is issued and renewed automatically by
 # cert-manager's existing `letsencrypt-prod` ClusterIssuer via HTTP-01 — the same proven pattern
 # already used by this cluster's other ingresses (arevo-app-ingress, revo-app-ingress). No
-# manual cert/key GitHub secrets: cert-manager creates and rotates the bl8-redirect-tls /
-# bl8-ui-tls Secrets on its own once this Ingress is applied. ssl-redirect is "false" and the
-# server-snippet does the http->https redirect itself instead, carving out an exception for
+# manual cert/key GitHub secrets: cert-manager creates and rotates the bl8-tls Secret on its own
+# once this Ingress is applied. ssl-redirect is "false" and the server-snippet does the
+# http->https redirect itself instead, carving out an exception for
 # /.well-known/acme-challenge/ — the ACME HTTP-01 challenge must be reachable over plain HTTP,
 # so a blanket ssl-redirect would break every renewal.
+#
+# Single host, path-routed: bl8.us/admin/* and the bare bl8.us/ go to bl8-ui (the public landing
+# page and, under /admin, the authenticated app — see ui/'s (protected)/admin route group);
+# every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress evaluates an
+# exact match and longer prefixes before a shorter prefix, so listing /admin and the exact "/"
+# ahead of the catch-all "/" prefix here is enough — no explicit priority annotation needed.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -24,27 +30,29 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts: ["bl8.us"]
-      secretName: bl8-redirect-tls
-    - hosts: ["admin.bl8.us"]
-      secretName: bl8-ui-tls
+      secretName: bl8-tls
   rules:
     - host: bl8.us
       http:
         paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /
+            pathType: Exact
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: bl8-redirect
-                port:
-                  number: 80
-    - host: admin.bl8.us
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
                 port:
                   number: 80

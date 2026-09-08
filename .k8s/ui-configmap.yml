@@ -13,10 +13,10 @@ data:
   # adapter-node needs this to build correct absolute URLs (redirects, form actions) when
   # running behind the ingress rather than accessed directly — see ui/vite.config.ts's adapter
   # setup (plain adapter(), no origin baked in at build time).
-  ORIGIN: "https://admin.bl8.us"
-  # Where redirect/ is actually reachable — used to build short-link/QR-code URLs. Defaults to
-  # this already if unset, but set explicitly so it's visible here rather than relying on the
-  # code's own fallback.
+  ORIGIN: "https://bl8.us"
+  # Where redirect/ is actually reachable — used to build short-link/QR-code URLs. Same host as
+  # ORIGIN now (single-domain routing: bl8-ingress sends /admin/* and exact / to this service,
+  # everything else to bl8-redirect) — set explicitly rather than relying on the code's fallback.
   PUBLIC_REDIRECT_BASE_URL: "https://bl8.us"
   RATE_LIMIT_MAX: "20"
   RATE_LIMIT_WINDOW_SECONDS: "60"

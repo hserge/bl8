@@ -1,12 +1,25 @@
 <!--
 Sync Impact Report
-Version change: 8.0.1 → 9.0.0
-Modified principles: II. Redirect Is a Minimal Read-Path Service — foreground/ink color becomes
-  a caller-suppliable hex parameter (`fg`), following the exact same format-only bound as `bg`,
-  instead of being permanently auto-derived from the background with no override.
+Version change: 9.0.0 → 10.0.0
+Modified principles: none (Technology & Architecture Constraints' "Domain separation" bullet
+  changed — `ui/` moves off its own subdomain onto bl8.us itself, path-routed under /admin
+  instead of host-routed on admin.bl8.us).
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (10.0.0, 2026-09-08):
+  - Technology & Architecture Constraints: "Domain separation" replaced with "Single-domain,
+    path-routed separation" — `ui/` no longer lives on `admin.bl8.us`; both components are
+    served on bl8.us, split by the ingress on path instead of host (`/admin/*` and the exact `/`
+    to ui/, everything else to redirect/). MAJOR because v1.0.0 through v9.0.0's own text
+    committed to two distinct hosts specifically so neither component's path namespace had to
+    consider the other's; this amendment reverses that specific guarantee and introduces a real,
+    narrow constraint in its place — redirect/ must not treat a literal `admin` code as a valid
+    short link, since that path now belongs to ui/. Triggered by the user's own product decision
+    to consolidate onto a single domain (bl8.us/{code} for redirects, bl8.us/ as the public
+    landing page, bl8.us/admin/* as the authenticated app) rather than split traffic across two
+    hosts.
 
 Changed sections (9.0.0, 2026-09-02):
   - II. Redirect Is a Minimal Read-Path Service: `fg` joins `bg` as a free-form (format-bounded,
@@ -255,11 +268,17 @@ risk. A feature without tests is not done.
   not require every existing page to be rewritten at once, but new and materially changed UI
   MUST follow this rule, and existing hand-rolled UI should migrate to shadcn-svelte components
   as it's next touched.
-- **Domain separation**: `redirect/` is served on the bare domain (`bl8.us`); `ui/` is served
-  on a subdomain (`admin.bl8.us`). The two components' path namespaces never need to avoid
-  colliding with each other — `redirect/`'s `/{code}`, `/{code}/{slug}`, `/health` and `ui/`'s
-  `/links`, `/auth`, `/health`, etc. live on entirely different hosts. This is what makes
-  Principle I's independence concrete at the deployment level, not just at the code level.
+- **Single-domain, path-routed separation**: both components are served on the bare domain
+  (`bl8.us`) — there is no `ui/` subdomain. The ingress routes by path instead: `/admin/*` and
+  the exact bare `/` go to `ui/` (the public marketing page at `/`, the authenticated app under
+  `/admin/*`, including Auth.js's own routes at `/admin/auth/*`); every other path (`/{code}`,
+  `/{code}/{slug}`, `redirect/`'s `/health`, etc.) falls through to `redirect/`. `redirect/`'s own
+  path namespace MUST therefore avoid colliding with `/admin` — a code that happened to be
+  literally `admin` would be unreachable as a short link, an acceptable, narrow carve-out rather
+  than a namespacing scheme either component has to actively coordinate on day to day. This is
+  what makes Principle I's independence concrete at the deployment level, not just at the code
+  level: two backend Services behind one Ingress, not two components that happen to share a
+  path prefix scheme.
 
 ## Frontend Design Workflow
 
@@ -390,4 +409,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 9.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-02
+**Version**: 10.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-08
