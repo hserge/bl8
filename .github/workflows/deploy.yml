@@ -21,27 +21,29 @@ jobs:
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
-      # .gitmodules points ui/ and redirect/ at git@hserge.github.com:... — a personal SSH host
-      # alias (for juggling multiple GitHub accounts locally) that does not exist as a real
-      # hostname on this runner. Rewrite it to a plain HTTPS github.com URL authenticated with a
-      # PAT before checkout runs its submodule init, so `submodules: true` below can actually
-      # reach bl8-ui/bl8-redirect without needing an SSH key + host alias in CI.
-      - name: Allow HTTPS access to submodule repos
-        run: |
-          git config --global url."https://x-access-token:${{ secrets.SUBMODULES_PAT }}@github.com/".insteadOf "git@hserge.github.com:"
-
+      # submodules: false here on purpose — actions/checkout's own submodule fetching always
+      # configures a global http.https://github.com/.extraheader Authorization using this
+      # workflow's own GITHUB_TOKEN (which has no access to bl8-ui/bl8-redirect, both private),
+      # regardless of persist-credentials. That header applies to any https://github.com/ URL,
+      # so it collides with — and wins over — any custom insteadOf-rewritten credentials for
+      # the same host, breaking the submodule clone with a misleading "repository not found".
+      # Checking out submodules ourselves in the next step, after this action is done touching
+      # git config, avoids that collision entirely.
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          # actions/checkout's default persist-credentials injects an http.https://github.com/
-          # .extraheader Authorization using this workflow's own GITHUB_TOKEN — which has no
-          # access to bl8-ui/bl8-redirect. That header applies to any https://github.com/ URL,
-          # so it clashes with the x-access-token credentials the insteadOf rewrite above
-          # embeds directly in the submodule URLs, and wins, breaking the submodule clone with a
-          # misleading "repository not found". Disabling it here leaves SUBMODULES_PAT as the
-          # only credential in play — nothing later in this job needs to push as GITHUB_TOKEN.
-          persist-credentials: false
+          submodules: false
+
+      # .gitmodules points ui/ and redirect/ at git@hserge.github.com:... — a personal SSH host
+      # alias (for juggling multiple GitHub accounts locally) that does not exist as a real
+      # hostname on this runner. Rewrite it to a plain HTTPS github.com URL authenticated with a
+      # PAT, then fetch the submodules ourselves — see the comment on "Checkout code" above for
+      # why this can't just be `submodules: recursive` on that step instead.
+      - name: Check out submodules
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.SUBMODULES_PAT }}@github.com/".insteadOf "git@hserge.github.com:"
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth=1
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
