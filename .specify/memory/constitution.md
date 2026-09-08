@@ -1,12 +1,26 @@
 <!--
 Sync Impact Report
-Version change: 8.0.0 → 8.0.1
-Modified principles: II. Redirect Is a Minimal Read-Path Service, V. UI Owns Writes and
-  Business Logic — terminology only, "alias"/"SEO alias" renamed to "slug" throughout (no rule
-  changed; the field, route segment, and behavior described are identical to v8.0.0)
+Version change: 8.0.1 → 9.0.0
+Modified principles: II. Redirect Is a Minimal Read-Path Service — foreground/ink color becomes
+  a caller-suppliable hex parameter (`fg`), following the exact same format-only bound as `bg`,
+  instead of being permanently auto-derived from the background with no override.
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (9.0.0, 2026-09-02):
+  - II. Redirect Is a Minimal Read-Path Service: `fg` joins `bg` as a free-form (format-bounded,
+    not enum-bounded) QR color parameter — any well-formed hex value, silently falling back to
+    the existing auto-contrast derivation from `bg` when omitted or malformed, rather than never
+    being a valid parameter at all. MAJOR because v8.0.0's own text explicitly forbade this
+    ("Foreground/ink color is never a caller-supplied parameter at all"); this amendment directly
+    reverses that specific prohibition while keeping the auto-contrast behavior as the default.
+    Triggered by the user asking for an explicit foreground-color field alongside the existing
+    background one; auto-contrast remains the fallback specifically so an arbitrary background
+    still can't silently produce an unreadable code when a caller doesn't also specify a
+    foreground — the risk the original prohibition existed to prevent — but a caller who
+    explicitly supplies both colors is trusted to have picked a readable pair, the same trust
+    model `bg` alone already carried.
 
 Changed sections (8.0.1, 2026-08-25):
   - II. Redirect Is a Minimal Read-Path Service, V. UI Owns Writes and Business Logic: PATCH —
@@ -102,18 +116,20 @@ unauthenticated string the redirect lookup itself resolves, so there is no addit
 gate; (3) the QR endpoint MAY accept a small set of rendering parameters, each bounded in its
 own way rather than freely combinable into arbitrary customization: `dots` and `corners` each
 select from a small, fixed, closed enum of shape names (documented alongside the handler) —
-enum-equality checks, not free-form shape customization — while `bg` accepts any well-formed
-hex color value, unenumerated, since color is a continuous space where enumerating "allowed"
-values would be meaningless; the only bound on `bg` is format validity, not membership in a
-fixed set. Foreground/ink color is never a caller-supplied parameter at all — it MUST be
-derived algorithmically from the chosen background (e.g. a contrast/luminance rule), so an
-arbitrary background can never be paired with an unreadable foreground. Every one of these
-parameters, valid or not, MUST silently fall back to its default (never a request error),
-since they are cosmetic, not validated, inputs — an unrecognized shape name or malformed hex
-string is simply treated as absent. Neither this nor the other two exceptions is general
+enum-equality checks, not free-form shape customization — while `bg` and `fg` each accept any
+well-formed hex color value, unenumerated, since color is a continuous space where enumerating
+"allowed" values would be meaningless; the only bound on either is format validity, not
+membership in a fixed set. `fg` is optional: when omitted or malformed, it MUST still fall back
+to being derived algorithmically from `bg` (e.g. a contrast/luminance rule), so a caller who
+supplies only a background still can't end up with an unreadable code by omission — but a
+caller who explicitly supplies both is trusted to have picked a readable pair, same as `bg`
+alone was already trusted not to be paired with unreadable content elsewhere on the page. Every
+one of these parameters, valid or not, MUST silently fall back to its default (never a request
+error), since they are cosmetic, not validated, inputs — an unrecognized shape name or malformed
+hex string is simply treated as absent. Neither this nor the other two exceptions is general
 request validation, and none MUST grow into anything more — no partial matching, normalization,
 slug-specific business logic, logo embedding, arbitrary sizing, or any QR parameter beyond
-`dots`/`corners`/`bg` as specified here. It is stateless and MUST be safe to run as many
+`dots`/`corners`/`bg`/`fg` as specified here. It is stateless and MUST be safe to run as many
 identical, horizontally scaled instances with no shared in-process state.
 Any feature request that would add write behavior, business logic, or auth to `redirect/`
 belongs in `ui/` instead.
@@ -133,10 +149,13 @@ exception draws its boundary differently for shape versus color, deliberately: s
 genuinely discrete design choice (there are only so many reasonable module/marker shapes), so
 enumerating it is natural and keeps the surface predictable; color is not discrete — there is no
 finite "reasonable" set of hex values — so bounding it by format instead of membership is the
-honest version of the same narrow-exception principle, not a loophole. Auto-deriving foreground
-from background (rather than accepting it as a second free color) keeps the one truly open
-parameter from being able to produce something unreadable, which is the actual risk an
-unbounded customization surface would otherwise pose.
+honest version of the same narrow-exception principle, not a loophole. Extending that same
+format-only bound to `fg` (rather than keeping foreground permanently auto-derived) treats both
+colors symmetrically instead of arbitrarily trusting a caller with one continuous-color
+parameter but not the other; the omission-safety `bg` alone never needed (an unreadable code by
+simple oversight) is preserved by keeping auto-contrast as `fg`'s default when unset, which is
+the actual risk the original prohibition existed to prevent — not the mere existence of a second
+color parameter.
 
 ### III. Cache-Aside Reads, Postgres as Source of Truth
 
@@ -371,4 +390,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 8.0.1 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-08-25
+**Version**: 9.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-02
