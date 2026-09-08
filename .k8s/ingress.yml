@@ -7,25 +7,23 @@
 # /.well-known/acme-challenge/ — the ACME HTTP-01 challenge must be reachable over plain HTTP,
 # so a blanket ssl-redirect would break every renewal.
 #
-# Single host, path-routed: bl8.us/admin/* and the bare bl8.us/ go to bl8-ui (the public landing
-# page and, under /admin, the authenticated app — see ui/'s (protected)/admin route group).
-# /auth/* also goes to bl8-ui — that's Auth.js's own routes (signin/callback/session/etc.),
-# which @auth/sveltekit@1.11.3 hardcodes to its default /auth/* prefix regardless of any custom
-# basePath config (see src/lib/server/auth.ts's comment); routing /auth here directly, rather
-# than fighting the library, is simpler than it looks since these are framework-internal
-# endpoints, not user-facing admin pages. /_app (SvelteKit's build output — every JS/CSS chunk
-# the landing page's own HTML references) and /images (ui/static/images) also go to bl8-ui for
-# the same reason the landing page's HTML itself does: only the *exact* "/" matches the
-# bare-root rule below, so without these, every asset the landing page loads would otherwise
-# fall through to the catch-all and 404 against bl8-redirect — which is exactly what happened
-# before these were added (page loaded with zero CSS/JS). /robots.txt (ui/static/robots.txt) is
-# NOT listed here on purpose — ingress-nginx's admission webhook rejects any path containing a
-# dot regardless of pathType ("path /robots.txt cannot be used with pathType Exact/Prefix"), so
-# it falls through to the bl8-redirect catch-all and 404s; a missing robots.txt is a standard,
-# harmless default (crawlers treat it as "no restrictions"), not worth routing around the
-# webhook for. Every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress
-# evaluates an exact match and longer prefixes before a shorter prefix, so listing these ahead of
-# the catch-all "/" prefix here is enough — no explicit priority annotation needed.
+# Single host, matched by shape rather than an enumerated list of ui/ paths: redirect/'s codes
+# are always exactly 7 alphanumeric characters (generateCode(), ui/src/lib/server/generateCode.ts
+# — system-generated only, never user-chosen, so this is a real invariant, not a convention that
+# could quietly drift), optionally followed by more path (/{code}/{slug}, /{code}/qr). Anything
+# matching that shape goes to bl8-redirect; everything else — the landing page, /admin/*, Auth.js's
+# /auth/*, ui/'s own /_app build-output and /images static assets, a future /pricing page nobody's
+# written yet — goes to bl8-ui by default. This replaces an earlier version of this file that
+# enumerated ui/'s reserved paths one by one (/admin, /auth, /_app, /images): that list had to be
+# updated by hand every time ui/ gained a new top-level route, and silently 404'd anything missed.
+# Matching redirect/'s fixed-shape codes instead needs no such upkeep.
+#
+# use-regex: "true" makes ingress-nginx treat pathType ImplementationSpecific paths as regex
+# (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
+# alphanumeric characters" at all, since plain Prefix/Exact can't. This applies to every path on
+# this Ingress, including whatever cert-manager's http01-edit-in-place injects here during
+# renewal — verified working by forcing a real renewal after this change shipped (see git log
+# for the verification note), not just assumed safe from reading the docs.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -41,6 +39,7 @@ metadata:
     # header" (a real 502 seen in practice, immediately after the OAuth callback redirect).
     nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
     nginx.ingress.kubernetes.io/proxy-buffers-number: "8"
+    nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/server-snippet: |
       set $redirect 0;
       if ($scheme = http) { set $redirect 1; }
@@ -55,45 +54,17 @@ spec:
     - host: bl8.us
       http:
         paths:
-          - path: /admin
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /_app
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /images
-            pathType: Prefix
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /
-            pathType: Exact
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /
-            pathType: Prefix
+          - path: ^/[a-zA-Z0-9]{7}(/.*)?$
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: bl8-redirect
+                port:
+                  number: 80
+          - path: ^/.*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: bl8-ui
                 port:
                   number: 80

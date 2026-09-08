@@ -1,12 +1,22 @@
 <!--
 Sync Impact Report
-Version change: 9.0.0 → 10.0.0
-Modified principles: none (Technology & Architecture Constraints' "Domain separation" bullet
-  changed — `ui/` moves off its own subdomain onto bl8.us itself, path-routed under /admin
-  instead of host-routed on admin.bl8.us).
+Version change: 10.0.0 → 10.1.0
+Modified principles: none (Technology & Architecture Constraints' "Single-domain, path-routed
+  separation" bullet refined — the ingress now matches redirect/'s fixed 7-alphanumeric-character
+  code shape instead of enumerating ui/'s reserved paths one by one).
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (10.1.0, 2026-09-08):
+  - Technology & Architecture Constraints: "Single-domain, path-routed separation" reworded to
+    "Single-domain, shape-routed separation" — MINOR because this refines *how* the same
+    single-domain separation v10.0.0 already established is enforced (matching redirect/'s code
+    shape rather than listing ui/'s reserved prefixes), not a reversal of that decision itself.
+    Replaces the enumerated-prefix list (`/admin`, `/auth`, `/_app`, `/images`) with a single
+    invariant: a real code is always exactly 7 alphanumeric characters. Triggered by the user's
+    own observation that the enumerated list would need a hand-edit — and could silently 404
+    whatever was forgotten — every time ui/ grew a new top-level route.
 
 Changed sections (10.0.0, 2026-09-08):
   - Technology & Architecture Constraints: "Domain separation" replaced with "Single-domain,
@@ -268,28 +278,24 @@ risk. A feature without tests is not done.
   not require every existing page to be rewritten at once, but new and materially changed UI
   MUST follow this rule, and existing hand-rolled UI should migrate to shadcn-svelte components
   as it's next touched.
-- **Single-domain, path-routed separation**: both components are served on the bare domain
-  (`bl8.us`) — there is no `ui/` subdomain. The ingress routes by path instead: `/admin/*`,
-  `/auth/*`, and the exact bare `/` go to `ui/` (the public marketing page at `/`, the
-  authenticated app under `/admin/*`); every other path (`/{code}`, `/{code}/{slug}`,
-  `redirect/`'s `/health`, etc.) falls through to `redirect/`. `/auth/*` is its own top-level
-  reserved prefix rather than living under `/admin/auth/*` — `@auth/sveltekit`'s installed
-  version hardcodes Auth.js's own routes to its default `/auth/*` regardless of any custom
-  `basePath` config (see `ui/src/lib/server/auth.ts`'s comment), so the ingress routes that path
-  directly instead of fighting the library. `/_app` (SvelteKit's own build-output prefix) and
-  `/images` (`ui/static/images`) are reserved the same way, for the same reason: only the exact
-  bare `/` routes to `ui/`, so without these, every asset the landing page's own HTML references
-  would fall through to the catch-all and 404 against `redirect/` instead. `/robots.txt` is
-  deliberately NOT reserved this way — ingress-nginx's admission webhook rejects any path
-  containing a dot regardless of pathType, so it falls through to `redirect/` and 404s, a
-  standard, harmless default crawlers already treat as "no restrictions." `redirect/`'s own path
-  namespace MUST therefore avoid colliding with `/admin`, `/auth`, `/_app`, or `/images` — a code
-  that happened to match one of these would be unreachable as a short link, an acceptable,
-  narrow carve-out rather than a namespacing scheme either component has to actively coordinate
-  on day to day. This is what
-  makes Principle I's independence concrete at the deployment level, not just at the code level:
-  two backend Services behind one Ingress, not two components that happen to share a path prefix
-  scheme.
+- **Single-domain, shape-routed separation**: both components are served on the bare domain
+  (`bl8.us`) — there is no `ui/` subdomain. The ingress routes by matching `redirect/`'s actual
+  code shape, not by enumerating `ui/`'s paths: a code is always exactly 7 alphanumeric
+  characters (`generateCode()`, system-generated only, never user-chosen — a real invariant, not
+  a convention that could quietly drift), optionally followed by more path (`/{code}/{slug}`,
+  `/{code}/qr`). Anything matching that shape goes to `redirect/`; everything else — the public
+  marketing page at `/`, the authenticated app under `/admin/*`, Auth.js's own `/auth/*` routes
+  (`@auth/sveltekit`'s installed version hardcodes that prefix regardless of any custom
+  `basePath` config — see `ui/src/lib/server/auth.ts`'s comment), `ui/`'s own `/_app` build
+  output and `/images` static assets, any future top-level route `ui/` grows — goes to `ui/` by
+  default. This deliberately replaces an earlier version of this rule that enumerated `ui/`'s
+  reserved paths one by one: that list needed a hand-edit (and could silently 404 whatever was
+  forgotten) every time `ui/` gained a new top-level route, where matching `redirect/`'s
+  fixed-shape codes instead needs no such upkeep — the one thing that must stay true going
+  forward is that a real code is always exactly 7 alphanumeric characters; changing that length
+  requires updating the ingress's matching rule at the same time. This is what makes Principle
+  I's independence concrete at the deployment level, not just at the code level: two backend
+  Services behind one Ingress, not two components that happen to share a path prefix scheme.
 
 ## Frontend Design Workflow
 
@@ -420,4 +426,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 10.0.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-08
+**Version**: 10.1.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-08
