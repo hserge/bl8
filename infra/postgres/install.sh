@@ -22,8 +22,13 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-UI_PASSWORD=$(openssl rand -base64 24)
-REDIRECT_PASSWORD=$(openssl rand -base64 24)
+# base64url, no padding: openssl rand -base64's default alphabet includes '/' and '+', which
+# are structural characters in a URL (path separator, space-in-query) and break naive
+# postgres://user:pass@host URL parsing when they land in the password unescaped — as they did
+# here in practice. '-' and '_' are both in URL's unreserved set (RFC 3986), so this needs no
+# percent-encoding anywhere these passwords get embedded in a connection string.
+UI_PASSWORD=$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')
+REDIRECT_PASSWORD=$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')
 
 sudo -u postgres psql -v ON_ERROR_STOP=1 \
 	-v db_name="$DB_NAME" \

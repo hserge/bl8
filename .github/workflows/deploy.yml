@@ -193,8 +193,13 @@ jobs:
             sed -i "s|__IMAGE_REDIRECT__|${{ env.IMAGE_REDIRECT }}:${IMAGE_TAG}|g" ~/.k8s/redirect-deployment.yml
             kubectl apply -f ~/.k8s/redirect-deployment.yml || exit 1
 
-            kubectl rollout status deployment/bl8-ui -n bl8 --timeout=120s && echo "bl8-ui rollout OK"
-            kubectl rollout status deployment/bl8-redirect -n bl8 --timeout=120s && echo "bl8-redirect rollout OK"
+            # Explicit || exit 1 on both — under `set -e`, a failing command that's the first
+            # half of an `&&` pair does NOT stop the script (only the last command in such a
+            # list does), so a timed-out rollout here would otherwise print nothing, skip
+            # straight past the `&&`'s "OK" echo, and let the job still report success — exactly
+            # what happened before this was added: pods stuck crash-looping while CI stayed green.
+            kubectl rollout status deployment/bl8-ui -n bl8 --timeout=120s && echo "bl8-ui rollout OK" || exit 1
+            kubectl rollout status deployment/bl8-redirect -n bl8 --timeout=120s && echo "bl8-redirect rollout OK" || exit 1
 
             # Ingress last, same as the reference workflow — only makes sense to route traffic
             # once the Services/Deployments it points at already exist.

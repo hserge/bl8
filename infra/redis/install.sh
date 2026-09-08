@@ -43,12 +43,11 @@ apt-get update
 apt-get install -y redis-server
 
 REDIS_CONF="/etc/redis/redis.conf"
-REDIS_PASSWORD=$(openssl rand -base64 32)
-# base64 output can contain "/", which would otherwise collide with sed's own "/" delimiter
-# below and corrupt the substitution (or worse, silently truncate the password) whenever a
-# generated password happens to contain one — escape it so the raw password (used as-is,
-# unescaped, in the printed connection strings) never has to avoid that character.
-REDIS_PASSWORD_SED_SAFE="${REDIS_PASSWORD//\//\\/}"
+# base64url, no padding: plain base64's '/' and '+' would otherwise collide with sed's own "/"
+# delimiter below, and — more importantly — break naive URL parsing wherever this password lands
+# unescaped in UI_REDIS_URL's redis://:pass@host printed below. '-'/'_' are both in URL's
+# unreserved set (RFC 3986), so nothing here needs escaping either way.
+REDIS_PASSWORD=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
 
 # Listen on all interfaces (this VM has no other purpose; access is bounded by whatever
 # network-level access control is configured separately, not by binding to loopback only),
@@ -56,7 +55,7 @@ REDIS_PASSWORD_SED_SAFE="${REDIS_PASSWORD//\//\\/}"
 # allkeys-lru, so the cache self-manages under MAXMEMORY instead of growing unbounded (the
 # noeviction default would instead start rejecting writes once full).
 sed -i "s/^bind .*/bind 0.0.0.0 -::1/" "$REDIS_CONF"
-sed -i "s/^# *requirepass .*/requirepass ${REDIS_PASSWORD_SED_SAFE}/" "$REDIS_CONF"
+sed -i "s/^# *requirepass .*/requirepass ${REDIS_PASSWORD}/" "$REDIS_CONF"
 if ! grep -q "^requirepass" "$REDIS_CONF"; then
 	echo "requirepass ${REDIS_PASSWORD}" >>"$REDIS_CONF"
 fi
