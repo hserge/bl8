@@ -269,16 +269,20 @@ risk. A feature without tests is not done.
   MUST follow this rule, and existing hand-rolled UI should migrate to shadcn-svelte components
   as it's next touched.
 - **Single-domain, path-routed separation**: both components are served on the bare domain
-  (`bl8.us`) — there is no `ui/` subdomain. The ingress routes by path instead: `/admin/*` and
-  the exact bare `/` go to `ui/` (the public marketing page at `/`, the authenticated app under
-  `/admin/*`, including Auth.js's own routes at `/admin/auth/*`); every other path (`/{code}`,
-  `/{code}/{slug}`, `redirect/`'s `/health`, etc.) falls through to `redirect/`. `redirect/`'s own
-  path namespace MUST therefore avoid colliding with `/admin` — a code that happened to be
-  literally `admin` would be unreachable as a short link, an acceptable, narrow carve-out rather
-  than a namespacing scheme either component has to actively coordinate on day to day. This is
-  what makes Principle I's independence concrete at the deployment level, not just at the code
-  level: two backend Services behind one Ingress, not two components that happen to share a
-  path prefix scheme.
+  (`bl8.us`) — there is no `ui/` subdomain. The ingress routes by path instead: `/admin/*`,
+  `/auth/*`, and the exact bare `/` go to `ui/` (the public marketing page at `/`, the
+  authenticated app under `/admin/*`); every other path (`/{code}`, `/{code}/{slug}`,
+  `redirect/`'s `/health`, etc.) falls through to `redirect/`. `/auth/*` is its own top-level
+  reserved prefix rather than living under `/admin/auth/*` — `@auth/sveltekit`'s installed
+  version hardcodes Auth.js's own routes to its default `/auth/*` regardless of any custom
+  `basePath` config (see `ui/src/lib/server/auth.ts`'s comment), so the ingress routes that path
+  directly instead of fighting the library. `redirect/`'s own path namespace MUST therefore avoid
+  colliding with either `/admin` or `/auth` — a code that happened to be literally `admin` or
+  `auth` would be unreachable as a short link, an acceptable, narrow carve-out rather than a
+  namespacing scheme either component has to actively coordinate on day to day. This is what
+  makes Principle I's independence concrete at the deployment level, not just at the code level:
+  two backend Services behind one Ingress, not two components that happen to share a path prefix
+  scheme.
 
 ## Frontend Design Workflow
 

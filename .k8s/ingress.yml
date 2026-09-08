@@ -8,10 +8,15 @@
 # so a blanket ssl-redirect would break every renewal.
 #
 # Single host, path-routed: bl8.us/admin/* and the bare bl8.us/ go to bl8-ui (the public landing
-# page and, under /admin, the authenticated app — see ui/'s (protected)/admin route group);
-# every other path (bl8.us/{code}) falls through to bl8-redirect. nginx-ingress evaluates an
-# exact match and longer prefixes before a shorter prefix, so listing /admin and the exact "/"
-# ahead of the catch-all "/" prefix here is enough — no explicit priority annotation needed.
+# page and, under /admin, the authenticated app — see ui/'s (protected)/admin route group).
+# /auth/* also goes to bl8-ui — that's Auth.js's own routes (signin/callback/session/etc.),
+# which @auth/sveltekit@1.11.3 hardcodes to its default /auth/* prefix regardless of any custom
+# basePath config (see src/lib/server/auth.ts's comment); routing /auth here directly, rather
+# than fighting the library, is simpler than it looks since these are framework-internal
+# endpoints, not user-facing admin pages. Every other path (bl8.us/{code}) falls through to
+# bl8-redirect. nginx-ingress evaluates an exact match and longer prefixes before a shorter
+# prefix, so listing /admin, /auth, and the exact "/" ahead of the catch-all "/" prefix here is
+# enough — no explicit priority annotation needed.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -36,6 +41,13 @@ spec:
       http:
         paths:
           - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /auth
             pathType: Prefix
             backend:
               service:
