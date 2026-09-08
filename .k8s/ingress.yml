@@ -22,8 +22,16 @@
 # (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
 # alphanumeric characters" at all, since plain Prefix/Exact can't. This applies to every path on
 # this Ingress, including whatever cert-manager's http01-edit-in-place injects here during
-# renewal — verified working by forcing a real renewal after this change shipped (see git log
-# for the verification note), not just assumed safe from reading the docs.
+# renewal. Attempted to verify this directly by forcing a fresh issuance (deleting the Certificate
+# and Secret) — inconclusive: Let's Encrypt reused a still-valid cached authorization from the
+# prior issuance instead of running a fresh HTTP-01 challenge, so no Challenge resource ever
+# appeared to observe. Rather than trust nginx's regex-location match ordering to prioritize
+# cert-manager's injected /.well-known/acme-challenge/<token> path correctly over the bl8-ui
+# catch-all below, the catch-all explicitly excludes that path (negative lookahead) so there's no
+# ambiguity regardless of order — cert-manager's own injected rule is the only thing that can
+# ever match it. The real renewal (~2026-11-07, this cert's renewalTime) is still the first
+# genuine end-to-end test of the underlying challenge mechanism; if it fails, revert this file to
+# the previous prefix-based, non-regex version (git history) as an immediate rollback.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -61,7 +69,7 @@ spec:
                 name: bl8-redirect
                 port:
                   number: 80
-          - path: /.*
+          - path: /(?!\.well-known/acme-challenge/).*
             pathType: ImplementationSpecific
             backend:
               service:
