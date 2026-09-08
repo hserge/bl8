@@ -20,18 +20,22 @@
 #
 # use-regex: "true" makes ingress-nginx treat pathType ImplementationSpecific paths as regex
 # (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
-# alphanumeric characters" at all, since plain Prefix/Exact can't. This applies to every path on
-# this Ingress, including whatever cert-manager's http01-edit-in-place injects here during
-# renewal. Attempted to verify this directly by forcing a fresh issuance (deleting the Certificate
-# and Secret) — inconclusive: Let's Encrypt reused a still-valid cached authorization from the
-# prior issuance instead of running a fresh HTTP-01 challenge, so no Challenge resource ever
-# appeared to observe. Rather than trust nginx's regex-location match ordering to prioritize
-# cert-manager's injected /.well-known/acme-challenge/<token> path correctly over the bl8-ui
-# catch-all below, the catch-all explicitly excludes that path (negative lookahead) so there's no
-# ambiguity regardless of order — cert-manager's own injected rule is the only thing that can
-# ever match it. The real renewal (~2026-11-07, this cert's renewalTime) is still the first
-# genuine end-to-end test of the underlying challenge mechanism; if it fails, revert this file to
-# the previous prefix-based, non-regex version (git history) as an immediate rollback.
+# alphanumeric characters" at all, since plain Prefix/Exact can't. ingress-nginx sorts these by
+# DESCENDING RAW STRING LENGTH before generating nginx's location blocks — not declaration order
+# — so the code-matcher below deliberately stays shorter than nothing else needs to beat it, and
+# the bl8-ui catch-all stays a plain `/.*` rather than growing a defensive exclusion for
+# cert-manager's injected /.well-known/acme-challenge/<token> path: a real attempt at exactly
+# that (a negative-lookahead exclusion) made the catch-all's string longer than the code-matcher,
+# which made it sort FIRST and silently swallowed every real short code — a regression caught
+# immediately by testing, not a hypothetical. Once understood, the original worry was unfounded
+# anyway: cert-manager's injected path includes the actual ACME token (~70+ characters), which
+# will in practice always be the longest string on this Ingress and sort ahead of both rules
+# below automatically. That interaction is still unverified end-to-end, though — forcing a fresh
+# certificate (deleting the Certificate and Secret) to test it came back inconclusive, since
+# Let's Encrypt reused a still-valid cached authorization instead of running a fresh challenge, so
+# no Challenge resource ever appeared to observe. The real renewal (~2026-11-07, this cert's
+# renewalTime) is the first genuine end-to-end test; if it fails, revert this file to the
+# prefix-based, non-regex version further back in git history as an immediate rollback.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -69,7 +73,7 @@ spec:
                 name: bl8-redirect
                 port:
                   number: 80
-          - path: /(?!\.well-known/acme-challenge/).*
+          - path: /.*
             pathType: ImplementationSpecific
             backend:
               service:

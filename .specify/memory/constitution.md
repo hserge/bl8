@@ -293,9 +293,14 @@ risk. A feature without tests is not done.
   forgotten) every time `ui/` gained a new top-level route, where matching `redirect/`'s
   fixed-shape codes instead needs no such upkeep — the one thing that must stay true going
   forward is that a real code is always exactly 7 alphanumeric characters; changing that length
-  requires updating the ingress's matching rule at the same time. This is what makes Principle
-  I's independence concrete at the deployment level, not just at the code level: two backend
-  Services behind one Ingress, not two components that happen to share a path prefix scheme.
+  requires updating the ingress's matching rule at the same time. ingress-nginx sorts these regex
+  paths by descending raw string length when generating nginx's config, not by declaration order
+  in the YAML — a real, confirmed-by-testing trap for anyone adding a third rule here: a longer
+  path string wins the match first regardless of which rule was meant to be more specific (see
+  `.k8s/ingress.yml`'s own comment for the regression this caused in practice). This is what makes
+  Principle I's independence concrete at the deployment level, not just at the code level: two
+  backend Services behind one Ingress, not two components that happen to share a path prefix
+  scheme.
 
 ## Frontend Design Workflow
 
