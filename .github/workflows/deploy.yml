@@ -34,6 +34,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          # actions/checkout's default persist-credentials injects an http.https://github.com/
+          # .extraheader Authorization using this workflow's own GITHUB_TOKEN — which has no
+          # access to bl8-ui/bl8-redirect. That header applies to any https://github.com/ URL,
+          # so it clashes with the x-access-token credentials the insteadOf rewrite above
+          # embeds directly in the submodule URLs, and wins, breaking the submodule clone with a
+          # misleading "repository not found". Disabling it here leaves SUBMODULES_PAT as the
+          # only credential in play — nothing later in this job needs to push as GITHUB_TOKEN.
+          persist-credentials: false
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
