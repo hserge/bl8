@@ -54,14 +54,14 @@ spec:
     - host: bl8.us
       http:
         paths:
-          - path: ^/[a-zA-Z0-9]{7}(/.*)?$
+          - path: /[a-zA-Z0-9]{7}(/.*)?$
             pathType: ImplementationSpecific
             backend:
               service:
                 name: bl8-redirect
                 port:
                   number: 80
-          - path: ^/.*
+          - path: /.*
             pathType: ImplementationSpecific
             backend:
               service:
