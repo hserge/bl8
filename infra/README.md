@@ -58,9 +58,7 @@ First time only:
 2. Create a real Google OAuth client (see `ui/README.md`) and set `UI_GOOGLE_CLIENT_ID` /
    `UI_GOOGLE_CLIENT_SECRET`.
 3. Generate a real secret and set it as `UI_AUTH_SECRET`: `openssl rand -base64 32`.
-4. Get a TLS cert for `admin.bl8.us`, base64 it (`base64 -w0 < cert.pem`), set
-   `BL8_UI_TLS_CERT` / `BL8_UI_TLS_KEY`.
-5. Set the deployment/registry secrets (`K8S_HOST`, `K8S_SSH_USER`, `SSH_PRIVATE_KEY`,
+4. Set the deployment/registry secrets (`K8S_HOST`, `K8S_SSH_USER`, `SSH_PRIVATE_KEY`,
    `PROXY_*`, `ENCODED_KUBECONFIG_DATA`, `GHCR_PULL_TOKEN`, `SUBMODULES_PAT`) if not already set
    for redirect/ below — they're shared, not per-service.
 
@@ -75,8 +73,7 @@ First time only:
 
 1. Steps 1–2 above must already be done (`REDIRECT_DATABASE_URL`, `REDIRECT_REDIS_ADDR`,
    `REDIRECT_REDIS_PASSWORD`).
-2. Get a TLS cert for `bl8.us`, base64 it, set `BL8_REDIRECT_TLS_CERT` / `BL8_REDIRECT_TLS_KEY`.
-3. Deployment/registry secrets — same shared set as ui/'s step 5 above, only needs setting once.
+2. Deployment/registry secrets — same shared set as ui/'s step 4 above, only needs setting once.
 
 Every deploy after that: same as ui/ — **push to `main`** builds+pushes `ghcr.io/<owner>/bl8-
 redirect` and applies `.k8s/redirect-*.yml`, in the same workflow run as ui/'s deploy, not a
@@ -121,14 +118,9 @@ Google OAuth client — see `ui/README.md`):
 | `REDIRECT_REDIS_ADDR` | Printed by `redis/install.sh` — bare `host:port`, not a URL |
 | `REDIRECT_REDIS_PASSWORD` | Printed by `redis/install.sh` |
 
-TLS (base64-encoded PEM cert/key; `base64 -w0 < cert.pem`) — see `.k8s/ingress.yml`'s own
-comment if this cluster already runs cert-manager instead, which would make all four of these
-unnecessary:
-
-| Secret | What |
-|---|---|
-| `BL8_UI_TLS_CERT` / `BL8_UI_TLS_KEY` | Certificate for `admin.bl8.us` |
-| `BL8_REDIRECT_TLS_CERT` / `BL8_REDIRECT_TLS_KEY` | Certificate for `bl8.us` |
+No TLS secrets: this cluster already runs cert-manager with a working `letsencrypt-prod`
+ClusterIssuer, so `.k8s/ingress.yml`'s annotations are enough — cert-manager issues and rotates
+`bl8-ui-tls`/`bl8-redirect-tls` on its own via HTTP-01, same as this cluster's other ingresses.
 
 ## Why two separate VMs, not one, and not in the cluster
 

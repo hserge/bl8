@@ -1,18 +1,27 @@
-# ingress-nginx (this cluster's controller — matches the reference workflow's own arevo2
-# manifests, not k3s's bundled Traefik). TLS secrets (bl8-ui-tls, bl8-redirect-tls) are created
-# by the deploy workflow from base64 cert/key GitHub secrets, same as that reference — not
-# cert-manager. If this cluster ever adds cert-manager, swap these tls: entries for a
-# cert-manager.io/cluster-issuer annotation instead and drop the manual secret-creation step
-# from the workflow.
+# ingress-nginx (this cluster's controller). TLS is issued and renewed automatically by
+# cert-manager's existing `letsencrypt-prod` ClusterIssuer via HTTP-01 — the same proven pattern
+# already used by this cluster's other ingresses (arevo-app-ingress, revo-app-ingress). No
+# manual cert/key GitHub secrets: cert-manager creates and rotates the bl8-redirect-tls /
+# bl8-ui-tls Secrets on its own once this Ingress is applied. ssl-redirect is "false" and the
+# server-snippet does the http->https redirect itself instead, carving out an exception for
+# /.well-known/acme-challenge/ — the ACME HTTP-01 challenge must be reachable over plain HTTP,
+# so a blanket ssl-redirect would break every renewal.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: bl8-ingress
   namespace: bl8
   annotations:
-    kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      set $redirect 0;
+      if ($scheme = http) { set $redirect 1; }
+      if ($request_uri ~ ^/.well-known/acme-challenge/) { set $redirect 0; }
+      if ($redirect = 1) { return 308 https://$host$request_uri; }
 spec:
+  ingressClassName: nginx
   tls:
     - hosts: ["bl8.us"]
       secretName: bl8-redirect-tls

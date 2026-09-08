@@ -158,31 +158,9 @@ jobs:
               --from-literal=REDIS_PASSWORD="${{ secrets.REDIRECT_REDIS_PASSWORD }}" \
               --dry-run=client -o yaml | kubectl apply -f - || exit 1
 
-            # TLS: cert/key pairs stored base64-encoded in GitHub secrets, decoded here and
-            # verified to actually match before being applied — same check for both domains.
-            verify_and_apply_tls () {
-              local secret_name="$1" cert_b64="$2" key_b64="$3"
-              echo "$cert_b64" | base64 -d > /tmp/tls.crt || exit 1
-              echo "$key_b64" | base64 -d > /tmp/tls.key || exit 1
-              if [ ! -s /tmp/tls.crt ] || [ ! -s /tmp/tls.key ]; then
-                echo "Error: TLS certificate or key is empty after decoding for $secret_name"
-                exit 1
-              fi
-              openssl x509 -noout -modulus -in /tmp/tls.crt | openssl md5 > /tmp/cert.md5
-              openssl rsa -noout -modulus -in /tmp/tls.key | openssl md5 > /tmp/key.md5
-              if ! cmp -s /tmp/cert.md5 /tmp/key.md5; then
-                echo "Error: private key does not match certificate for $secret_name"
-                exit 1
-              fi
-              kubectl create secret tls "$secret_name" \
-                --namespace bl8 \
-                --cert=/tmp/tls.crt \
-                --key=/tmp/tls.key \
-                --dry-run=client -o yaml | kubectl apply -f - || exit 1
-              rm -f /tmp/tls.crt /tmp/tls.key /tmp/cert.md5 /tmp/key.md5
-            }
-            verify_and_apply_tls bl8-ui-tls "${{ secrets.BL8_UI_TLS_CERT }}" "${{ secrets.BL8_UI_TLS_KEY }}"
-            verify_and_apply_tls bl8-redirect-tls "${{ secrets.BL8_REDIRECT_TLS_CERT }}" "${{ secrets.BL8_REDIRECT_TLS_KEY }}"
+            # TLS: no manual cert/key secrets — cert-manager's existing letsencrypt-prod
+            # ClusterIssuer issues and rotates bl8-ui-tls/bl8-redirect-tls itself, driven by the
+            # annotations on ~/.k8s/ingress.yml (same pattern as this cluster's other ingresses).
 
             # ConfigMaps first (deployments read them via envFrom on pod start).
             kubectl apply -f ~/.k8s/ui-configmap.yml || exit 1
