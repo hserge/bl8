@@ -1,5 +1,6 @@
 # Non-secret runtime config for bl8-ui. Secrets (DATABASE_URL, REDIS_URL, AUTH_SECRET,
-# GOOGLE_CLIENT_ID/SECRET) are created separately by the deploy workflow as a Secret named
+# GOOGLE_CLIENT_ID/SECRET, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET) are created separately by the deploy workflow as a Secret named
 # bl8-ui-secrets — see ui/README.md's "Environment variables" and ui/.env.example for the full
 # list this splits across the two.
 apiVersion: v1
@@ -23,3 +24,15 @@ data:
   STATUS_CHECK_INTERVAL_SECONDS: "60"
   PUBLIC_SEARCH_MIN_CHARS: "3"
   PUBLIC_SEARCH_DEBOUNCE_MS: "1000"
+  # Free-plan active-link cap (ui/src/lib/server/planLimits.ts).
+  FREE_PLAN_LINK_LIMIT: "25"
+  # Billing — Paddle is the live provider, against a real sandbox account; Stripe stays
+  # code-complete but on placeholder credentials (its secrets in bl8-ui-secrets) until a real
+  # Stripe account exists.
+  BILLING_PROVIDER: "paddle"
+  PADDLE_ENVIRONMENT: "sandbox"
+  # Client-side Paddle checkout token — safe to expose (see ui/.env.example's own note).
+  PUBLIC_PADDLE_CLIENT_TOKEN: "test_90c89af6bcdc7ec6a9b5f328656"
+  PUBLIC_PADDLE_ENVIRONMENT: "sandbox"
+  PUBLIC_PADDLE_PRO_PRICE_ID: "pri_01m2406tahap3kwc14e8vt5pn9"
+  STRIPE_PRO_PRICE_ID: "price_placeholder"

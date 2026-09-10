@@ -156,6 +156,8 @@ jobs:
 
             # bl8-ui runtime secrets — see ui/README.md's "Environment variables" for what each
             # one is; UI_REDIS_URL already carries its password embedded (redis://:pass@host:port).
+            # Paddle/Stripe values are currently sandbox/placeholder (BILLING_PROVIDER=paddle in
+            # ui-configmap.yml is the one actually live) — swap for real credentials once they exist.
             kubectl create secret generic bl8-ui-secrets \
               --namespace bl8 \
               --from-literal=DATABASE_URL="${{ secrets.UI_DATABASE_URL }}" \
@@ -163,6 +165,10 @@ jobs:
               --from-literal=AUTH_SECRET="${{ secrets.UI_AUTH_SECRET }}" \
               --from-literal=GOOGLE_CLIENT_ID="${{ secrets.UI_GOOGLE_CLIENT_ID }}" \
               --from-literal=GOOGLE_CLIENT_SECRET="${{ secrets.UI_GOOGLE_CLIENT_SECRET }}" \
+              --from-literal=PADDLE_API_KEY="${{ secrets.UI_PADDLE_API_KEY }}" \
+              --from-literal=PADDLE_WEBHOOK_SECRET="${{ secrets.UI_PADDLE_WEBHOOK_SECRET }}" \
+              --from-literal=STRIPE_SECRET_KEY="${{ secrets.UI_STRIPE_SECRET_KEY }}" \
+              --from-literal=STRIPE_WEBHOOK_SECRET="${{ secrets.UI_STRIPE_WEBHOOK_SECRET }}" \
               --dry-run=client -o yaml | kubectl apply -f - || exit 1
 
             # bl8-redirect runtime secrets — REDIS_ADDR is a bare host:port (not a URL), so its
