@@ -18,8 +18,9 @@
 # top-level route, and silently 404'd anything missed. Matching redirect/'s fixed-shape codes
 # instead needs no such upkeep — except for the one class of route name that shape can't tell
 # apart from a real code: a ui/ route whose own first path segment happens to BE exactly 7
-# alphanumeric characters. /pricing is exactly that (see the explicit Exact rules below); a
-# future top-level ui/ route needs one added here too if it's also unlucky enough to be 7 chars.
+# alphanumeric characters. /pricing is exactly that (see the longer-than-the-code-matcher regex
+# rule below, and its own comment for why); a future top-level ui/ route needs an entry added
+# there too if it's also unlucky enough to be 7 chars.
 #
 # use-regex: "true" makes ingress-nginx treat pathType ImplementationSpecific paths as regex
 # (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
@@ -69,27 +70,27 @@ spec:
     - host: bl8.us
       http:
         paths:
-          # Known collisions between a real ui/ route and the 7-char code shape below —
+          # Known collision between a real ui/ route and the 7-char code shape below —
           # "pricing" is coincidentally exactly 7 letters, so /pricing and /pricing/success both
           # matched the redirect regex and 404'd at bl8-redirect instead of reaching bl8-ui
-          # (caught 2026-09-10 by testing against the live deploy, not hypothetically). `Exact`
-          # pathType compiles to nginx `location = <path>`, which nginx always checks first and
-          # short-circuits on unconditionally — unlike a `Prefix` location, which can still lose
-          # to a later-matching regex location, this can't be reordered or out-prioritized by the
-          # code-matcher below no matter how ingress-nginx's regex-length sort shifts things
-          # around. A deliberate, narrow exception to the shape-based approach below — for a
-          # known, specific collision, not a return to enumerating every ui/ route — so add
-          # another Exact entry here only if a *future* top-level ui/ route also happens to be
-          # exactly 7 characters.
-          - path: /pricing
-            pathType: Exact
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
-          - path: /pricing/success
-            pathType: Exact
+          # (caught 2026-09-10 by testing against the live deploy, not hypothetically).
+          #
+          # First attempt was a `pathType: Exact` rule here instead, reasoning that nginx's own
+          # `location = <path>` always wins over a regex location unconditionally — that did NOT
+          # work (still 404'd after deploying and confirming via `kubectl` that the Ingress had
+          # actually updated), so `use-regex: "true"` above evidently applies uniformly to every
+          # path on this Ingress regardless of declared pathType, not just ones marked
+          # ImplementationSpecific — meaning Exact paths get swept into the very same
+          # descending-string-length sort described below rather than bypassing it. So instead:
+          # this pattern is a regex, like the code-matcher below, deliberately kept LONGER as a
+          # raw string (29 chars) than that one (22 chars) so it sorts first — the same proven
+          # mechanism this file already relies on for the ACME-challenge case. A deliberate,
+          # narrow exception to the shape-based approach below — for a known, specific collision,
+          # not a return to enumerating every ui/ route — so add another entry here (also kept
+          # longer than the code-matcher) only if a *future* top-level ui/ route also happens to
+          # be exactly 7 characters.
+          - path: ^/pricing$|^/pricing/success$
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: bl8-ui
