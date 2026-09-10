@@ -12,11 +12,14 @@
 # — system-generated only, never user-chosen, so this is a real invariant, not a convention that
 # could quietly drift), optionally followed by more path (/{code}/{slug}, /{code}/qr). Anything
 # matching that shape goes to bl8-redirect; everything else — the landing page, /admin/*, Auth.js's
-# /auth/*, ui/'s own /_app build-output and /images static assets, a future /pricing page nobody's
-# written yet — goes to bl8-ui by default. This replaces an earlier version of this file that
-# enumerated ui/'s reserved paths one by one (/admin, /auth, /_app, /images): that list had to be
-# updated by hand every time ui/ gained a new top-level route, and silently 404'd anything missed.
-# Matching redirect/'s fixed-shape codes instead needs no such upkeep.
+# /auth/*, ui/'s own /_app build-output and /images static assets — goes to bl8-ui by default.
+# This replaces an earlier version of this file that enumerated ui/'s reserved paths one by one
+# (/admin, /auth, /_app, /images): that list had to be updated by hand every time ui/ gained a new
+# top-level route, and silently 404'd anything missed. Matching redirect/'s fixed-shape codes
+# instead needs no such upkeep — except for the one class of route name that shape can't tell
+# apart from a real code: a ui/ route whose own first path segment happens to BE exactly 7
+# alphanumeric characters. /pricing is exactly that (see the explicit Exact rules below); a
+# future top-level ui/ route needs one added here too if it's also unlucky enough to be 7 chars.
 #
 # use-regex: "true" makes ingress-nginx treat pathType ImplementationSpecific paths as regex
 # (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
@@ -66,6 +69,32 @@ spec:
     - host: bl8.us
       http:
         paths:
+          # Known collisions between a real ui/ route and the 7-char code shape below —
+          # "pricing" is coincidentally exactly 7 letters, so /pricing and /pricing/success both
+          # matched the redirect regex and 404'd at bl8-redirect instead of reaching bl8-ui
+          # (caught 2026-09-10 by testing against the live deploy, not hypothetically). `Exact`
+          # pathType compiles to nginx `location = <path>`, which nginx always checks first and
+          # short-circuits on unconditionally — unlike a `Prefix` location, which can still lose
+          # to a later-matching regex location, this can't be reordered or out-prioritized by the
+          # code-matcher below no matter how ingress-nginx's regex-length sort shifts things
+          # around. A deliberate, narrow exception to the shape-based approach below — for a
+          # known, specific collision, not a return to enumerating every ui/ route — so add
+          # another Exact entry here only if a *future* top-level ui/ route also happens to be
+          # exactly 7 characters.
+          - path: /pricing
+            pathType: Exact
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
+          - path: /pricing/success
+            pathType: Exact
+            backend:
+              service:
+                name: bl8-ui
+                port:
+                  number: 80
           - path: /[a-zA-Z0-9]{7}(/.*)?$
             pathType: ImplementationSpecific
             backend:
