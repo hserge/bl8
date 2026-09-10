@@ -81,15 +81,25 @@ spec:
           # actually updated), so `use-regex: "true"` above evidently applies uniformly to every
           # path on this Ingress regardless of declared pathType, not just ones marked
           # ImplementationSpecific — meaning Exact paths get swept into the very same
-          # descending-string-length sort described below rather than bypassing it. So instead:
-          # this pattern is a regex, like the code-matcher below, deliberately kept LONGER as a
-          # raw string (29 chars) than that one (22 chars) so it sorts first — the same proven
+          # descending-string-length sort described below rather than bypassing it. Second
+          # attempt used `^/pricing$|^/pricing/success$` as a regex instead — the Kubernetes API
+          # itself rejected that outright ("must be an absolute path": every Ingress path,
+          # regex or not, must start with a literal `/`, not `^` — the same lesson this repo hit
+          # once before; see git history) — so the leading `^` had to go. Just dropping it
+          # unwrapped would have been wrong anyway: `^` binds tighter than `|`, so
+          # `^/pricing$|/pricing/success$` would only anchor the FIRST alternative, leaving
+          # "/pricing/success$" free to match as an unanchored substring anywhere in a URI.
+          # `(?:...)` below groups the alternation so the controller's own implicit start-anchor
+          # (inferred, not confirmed — the leading-`/` requirement strongly implies one, but
+          # this hasn't been isolated from the length-sort fix in testing) applies to the whole
+          # group correctly either way. Kept deliberately longer as a raw string (29 chars) than
+          # the code-matcher below (22 chars) so it sorts first regardless — the same proven
           # mechanism this file already relies on for the ACME-challenge case. A deliberate,
           # narrow exception to the shape-based approach below — for a known, specific collision,
           # not a return to enumerating every ui/ route — so add another entry here (also kept
-          # longer than the code-matcher) only if a *future* top-level ui/ route also happens to
-          # be exactly 7 characters.
-          - path: ^/pricing$|^/pricing/success$
+          # longer than the code-matcher, starting with a literal `/`) only if a *future*
+          # top-level ui/ route also happens to be exactly 7 characters.
+          - path: /(?:pricing|pricing/success)$
             pathType: ImplementationSpecific
             backend:
               service:
