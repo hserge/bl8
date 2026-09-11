@@ -1,0 +1,111 @@
+# TEMPORARY, one-off diagnostic workflow — not part of the regular pipeline. Investigates a
+# report that a QR-code scan of code kE2WHRu redirected correctly but recorded no click in
+# analytics. Read-only: dumps bl8-redirect's recent logs (clickwriter logs failed/dropped writes
+# — see redirect/internal/clickwriter/clickwriter.go) and queries click_events for this code
+# against BOTH bl8-ui-secrets' and bl8-redirect-secrets' DATABASE_URL, to check whether they're
+# actually the same database (redirect/ writes clicks, ui/ reads them for analytics — if the two
+# secrets point at different databases, a write would succeed but never be visible to ui/).
+# Delete this file once it's answered the question.
+name: Diagnose missing clicks (one-off)
+
+on:
+  workflow_dispatch: {}
+
+env:
+  IMAGE_UI_MIGRATE: ghcr.io/${{ github.repository_owner }}/bl8-ui-migrate
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect redirect logs and click_events across both DB secrets
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.K8S_HOST }}
+          username: ${{ secrets.K8S_SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.PROXY_HOST }}
+          proxy_username: ${{ secrets.PROXY_USERNAME }}
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_port: ${{ secrets.PROXY_PORT }}
+          script: |
+            set -e
+            export KUBECONFIG=~/.kube/config
+
+            echo "=== bl8-redirect recent logs mentioning clicks or kE2WHRu ==="
+            kubectl logs deployment/bl8-redirect -n bl8 --tail=500 --all-containers 2>&1 | grep -i "click\|kE2WHRu" || echo "(no matching lines in the last 500)"
+
+            echo
+            echo "=== querying click_events for code=kE2WHRu against each DB secret ==="
+
+            kubectl delete job bl8-diag-clicks -n bl8 --ignore-not-found || exit 1
+
+            cat <<'JOBEOF' > /tmp/diag-script.js
+            const postgres = require('postgres');
+            (async () => {
+              const label = process.env.DIAG_LABEL;
+              const sql = postgres(process.env.DATABASE_URL);
+              const db = await sql`SELECT current_database() AS db, inet_server_addr()::text AS host`;
+              const link = await sql`SELECT code, owner_id FROM links WHERE code = 'kE2WHRu'`;
+              const clicks = await sql`SELECT id, occurred_at, referrer, user_agent FROM click_events WHERE code = 'kE2WHRu' ORDER BY occurred_at DESC LIMIT 5`;
+              console.log(label, 'database:', JSON.stringify(db[0]));
+              console.log(label, 'links row:', JSON.stringify(link));
+              console.log(label, 'click_events rows:', JSON.stringify(clicks));
+              process.exit(0);
+            })().catch((e) => { console.error(label, 'ERROR', e.message); process.exit(1); });
+            JOBEOF
+            kubectl create configmap bl8-diag-clicks-script -n bl8 --from-file=script.cjs=/tmp/diag-script.js --dry-run=client -o yaml | kubectl apply -f - || exit 1
+
+            cat <<JOBEOF | kubectl apply -f - || exit 1
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: bl8-diag-clicks
+              namespace: bl8
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  restartPolicy: Never
+                  containers:
+                    - name: diag-ui-db
+                      image: ${{ env.IMAGE_UI_MIGRATE }}:036c3b8844968406b40a58d1096c5757c0469a35
+                      command: ["node", "/app/diag-script.cjs"]
+                      env:
+                        - name: DIAG_LABEL
+                          value: "UI_DATABASE_URL"
+                      envFrom:
+                        - secretRef:
+                            name: bl8-ui-secrets
+                      volumeMounts:
+                        - name: script
+                          mountPath: /app/diag-script.cjs
+                          subPath: script.cjs
+                    - name: diag-redirect-db
+                      image: ${{ env.IMAGE_UI_MIGRATE }}:036c3b8844968406b40a58d1096c5757c0469a35
+                      command: ["node", "/app/diag-script.cjs"]
+                      env:
+                        - name: DIAG_LABEL
+                          value: "REDIRECT_DATABASE_URL"
+                        - name: DATABASE_URL
+                          valueFrom:
+                            secretKeyRef:
+                              name: bl8-redirect-secrets
+                              key: DATABASE_URL
+                      volumeMounts:
+                        - name: script
+                          mountPath: /app/diag-script.cjs
+                          subPath: script.cjs
+                  volumes:
+                    - name: script
+                      configMap:
+                        name: bl8-diag-clicks-script
+            JOBEOF
+
+            if ! kubectl wait --for=condition=complete job/bl8-diag-clicks -n bl8 --timeout=60s; then
+              echo "Diag job did not complete cleanly - logs:"
+            fi
+            echo "--- diag-ui-db logs ---"
+            kubectl logs job/bl8-diag-clicks -n bl8 -c diag-ui-db --tail=200 || true
+            echo "--- diag-redirect-db logs ---"
+            kubectl logs job/bl8-diag-clicks -n bl8 -c diag-redirect-db --tail=200 || true
