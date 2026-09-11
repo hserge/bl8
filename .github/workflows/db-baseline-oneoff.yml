@@ -1,0 +1,99 @@
+# TEMPORARY, one-off workflow — not part of the regular pipeline. Run manually once to baseline
+# production's drizzle.__drizzle_migrations table (see the deploy job's own migration step for
+# why this is needed: prod's tables were set up via `drizzle-kit push` at some point rather than
+# tracked migrations, so `drizzle-kit migrate` collided trying to reapply 0000..0003 from
+# scratch). Inserts one row recording migration 0003 as the last-applied migration — its real
+# sha256 hash and _journal.json timestamp — so a subsequent `migrate` run correctly skips
+# 0000..0003 (already live) and applies only 0004/0005 (the genuinely missing subscriptions
+# table, users.plan_id column, and api_keys table). Idempotent: exits without inserting if the
+# tracking table already has any rows. Delete this file once it's been run successfully.
+name: DB baseline (one-off)
+
+on:
+  workflow_dispatch: {}
+
+env:
+  IMAGE_UI_MIGRATE: ghcr.io/${{ github.repository_owner }}/bl8-ui-migrate
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baseline drizzle migration history on prod
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.K8S_HOST }}
+          username: ${{ secrets.K8S_SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_host: ${{ secrets.PROXY_HOST }}
+          proxy_username: ${{ secrets.PROXY_USERNAME }}
+          proxy_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          proxy_port: ${{ secrets.PROXY_PORT }}
+          script: |
+            set -e
+            export KUBECONFIG=~/.kube/config
+
+            kubectl delete job bl8-db-baseline -n bl8 --ignore-not-found || exit 1
+
+            cat <<'JOBEOF' > /tmp/baseline-script.js
+            const postgres = require('postgres');
+            const sql = postgres(process.env.DATABASE_URL);
+            (async () => {
+              await sql`CREATE SCHEMA IF NOT EXISTS drizzle`;
+              await sql`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`;
+              const existing = await sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`;
+              if (existing[0].n > 0) {
+                console.log('Tracking table already has', existing[0].n, 'row(s) - not inserting, exiting.');
+                process.exit(0);
+              }
+              await sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${'472eaf5664de7f421545542541e800ab8f935e9588c0393c387acabce63987bf'}, ${1787868109695})`;
+              console.log('Baseline row for migration 0003 inserted.');
+              process.exit(0);
+            })().catch((e) => { console.error(e); process.exit(1); });
+            JOBEOF
+            kubectl create configmap bl8-db-baseline-script -n bl8 --from-file=script.cjs=/tmp/baseline-script.js --dry-run=client -o yaml | kubectl apply -f - || exit 1
+
+            cat <<JOBEOF | kubectl apply -f - || exit 1
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: bl8-db-baseline
+              namespace: bl8
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  restartPolicy: Never
+                  containers:
+                    - name: baseline
+                      # No :latest tag exists for this image (deploy.yml only pushes it under
+                      # the commit-SHA tag) — pinned to the SHA from the last successful
+                      # build-and-push run (commit 036c3b8, "Run pending database migrations on
+                      # every deploy") rather than guessing at a tag that was never published.
+                      image: ${{ env.IMAGE_UI_MIGRATE }}:036c3b8844968406b40a58d1096c5757c0469a35
+                      # Mounted inside /app (not a separate directory) and named .cjs so it
+                      # picks up /app's own node_modules (postgres is only installed there, and
+                      # module resolution only walks UP from the file's own directory) while
+                      # bypassing /app/package.json's "type": "module", which would otherwise
+                      # make a plain .js file here fail on require().
+                      command: ["node", "/app/baseline-script.cjs"]
+                      envFrom:
+                        - secretRef:
+                            name: bl8-ui-secrets
+                      volumeMounts:
+                        - name: script
+                          mountPath: /app/baseline-script.cjs
+                          subPath: script.cjs
+                  volumes:
+                    - name: script
+                      configMap:
+                        name: bl8-db-baseline-script
+            JOBEOF
+
+            if ! kubectl wait --for=condition=complete job/bl8-db-baseline -n bl8 --timeout=60s; then
+              echo "Baseline job failed or timed out - logs:"
+              kubectl logs job/bl8-db-baseline -n bl8 --tail=200
+              exit 1
+            fi
+            kubectl logs job/bl8-db-baseline -n bl8 --tail=200
+            echo "Baseline complete"
