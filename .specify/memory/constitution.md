@@ -1,12 +1,18 @@
 <!--
 Sync Impact Report
-Version change: 10.0.0 → 10.1.0
-Modified principles: none (Technology & Architecture Constraints' "Single-domain, path-routed
-  separation" bullet refined — the ingress now matches redirect/'s fixed 7-alphanumeric-character
-  code shape instead of enumerating ui/'s reserved paths one by one).
+Version change: 10.1.0 → 10.1.1
+Modified principles: none (Technology & Architecture Constraints' "Single-domain, shape-routed
+  separation" bullet updated to name ui/'s current authenticated-app path).
 Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (10.1.1, 2026-09-11):
+  - Technology & Architecture Constraints: "Single-domain, shape-routed separation" — `/admin/*`
+    renamed to `/app/*` as ui/'s authenticated-app path. PATCH because the rule itself (shape-
+    based ingress routing; everything that isn't a 7-alphanumeric-character code falls through
+    to ui/ by default) is unchanged — only the specific path name changed, not the invariant.
+    Triggered by the user's own product decision to rename the route.
 
 Changed sections (10.1.0, 2026-09-08):
   - Technology & Architecture Constraints: "Single-domain, path-routed separation" reworded to
@@ -284,7 +290,7 @@ risk. A feature without tests is not done.
   characters (`generateCode()`, system-generated only, never user-chosen — a real invariant, not
   a convention that could quietly drift), optionally followed by more path (`/{code}/{slug}`,
   `/{code}/qr`). Anything matching that shape goes to `redirect/`; everything else — the public
-  marketing page at `/`, the authenticated app under `/admin/*`, Auth.js's own `/auth/*` routes
+  marketing page at `/`, the authenticated app under `/app/*`, Auth.js's own `/auth/*` routes
   (`@auth/sveltekit`'s installed version hardcodes that prefix regardless of any custom
   `basePath` config — see `ui/src/lib/server/auth.ts`'s comment), `ui/`'s own `/_app` build
   output and `/images` static assets, any future top-level route `ui/` grows — goes to `ui/` by
@@ -431,4 +437,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 10.1.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-08
+**Version**: 10.1.1 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-11

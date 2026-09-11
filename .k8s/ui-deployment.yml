@@ -36,7 +36,7 @@ spec:
                 name: bl8-ui-config
             - secretRef:
                 name: bl8-ui-secrets
-          # Liveness deliberately does NOT hit /health: that route (src/routes/health/+server.ts)
+          # Liveness deliberately does NOT hit /info/health: that route (src/routes/info/health/+server.ts)
           # reports Postgres/Redis reachability, both external dependencies this pod doesn't
           # control — a liveness probe failing there would make k8s restart a perfectly healthy
           # ui pod during a database blip, which fixes nothing and just adds churn on top of a
@@ -52,7 +52,7 @@ spec:
           # readiness is for.
           readinessProbe:
             httpGet:
-              path: /health
+              path: /info/health
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10

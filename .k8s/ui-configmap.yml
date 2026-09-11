@@ -16,7 +16,7 @@ data:
   # setup (plain adapter(), no origin baked in at build time).
   ORIGIN: "https://bl8.us"
   # Where redirect/ is actually reachable — used to build short-link/QR-code URLs. Same host as
-  # ORIGIN now (single-domain routing: bl8-ingress sends /admin/* and exact / to this service,
+  # ORIGIN now (single-domain routing: bl8-ingress sends /app/* and exact / to this service,
   # everything else to bl8-redirect) — set explicitly rather than relying on the code's fallback.
   PUBLIC_REDIRECT_BASE_URL: "https://bl8.us"
   RATE_LIMIT_MAX: "20"
@@ -26,6 +26,8 @@ data:
   PUBLIC_SEARCH_DEBOUNCE_MS: "1000"
   # Free-plan active-link cap (ui/src/lib/server/planLimits.ts).
   FREE_PLAN_LINK_LIMIT: "25"
+  # Active API-key cap per account (ui/src/lib/server/apiKeys.ts).
+  API_KEY_LIMIT: "10"
   # Billing — Paddle is the live provider, against a real sandbox account; Stripe stays
   # code-complete but on placeholder credentials (its secrets in bl8-ui-secrets) until a real
   # Stripe account exists.

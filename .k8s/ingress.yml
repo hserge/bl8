@@ -11,16 +11,25 @@
 # are always exactly 7 alphanumeric characters (generateCode(), ui/src/lib/server/generateCode.ts
 # — system-generated only, never user-chosen, so this is a real invariant, not a convention that
 # could quietly drift), optionally followed by more path (/{code}/{slug}, /{code}/qr). Anything
-# matching that shape goes to bl8-redirect; everything else — the landing page, /admin/*, Auth.js's
-# /auth/*, ui/'s own /_app build-output and /images static assets — goes to bl8-ui by default.
-# This replaces an earlier version of this file that enumerated ui/'s reserved paths one by one
-# (/admin, /auth, /_app, /images): that list had to be updated by hand every time ui/ gained a new
-# top-level route, and silently 404'd anything missed. Matching redirect/'s fixed-shape codes
-# instead needs no such upkeep — except for the one class of route name that shape can't tell
-# apart from a real code: a ui/ route whose own first path segment happens to BE exactly 7
-# alphanumeric characters. /pricing is exactly that (see the longer-than-the-code-matcher regex
-# rule below, and its own comment for why); a future top-level ui/ route needs an entry added
-# there too if it's also unlucky enough to be 7 chars.
+# matching that shape goes to bl8-redirect; everything else — the landing page, /app/* (the
+# authenticated app), /info/* (public marketing/legal/status/API-docs-ish pages — split from
+# /app/* specifically so "two different things both called /app" stops being confusing; see git
+# history around 2026-09-11), /api/*, Auth.js's own /auth/*, ui/'s own /_app build-output and
+# /images static assets — goes to bl8-ui by default. This replaces an earlier version of this
+# file that enumerated ui/'s reserved paths one by one (/admin, /auth, /_app, /images): that list
+# had to be updated by hand every time ui/ gained a new top-level route, and silently 404'd
+# anything missed. Matching redirect/'s fixed-shape codes instead needs no such upkeep — except
+# for the one class of route name that shape can't tell apart from a real code: a ui/ route whose
+# own first path segment happens to BE exactly 7 alphanumeric characters. This actually happened
+# once (/pricing — see git history around 2026-09-10/11 for the full incident and the two failed
+# fix attempts before the real one) and is exactly why every one of ui/'s non-marketing,
+# non-code routes now lives under one of a small set of deliberately-short top-level prefixes
+# (/app, /info, /api — all well under 7 chars) rather than at its own top level: nothing under
+# them can ever collide with the 7-char shape no matter what ui/ names a new route underneath.
+# Only a brand new TOP-LEVEL prefix (sibling to /app, /info, /api, /) would reopen this risk —
+# keep any such addition well clear of exactly 7 characters, or give it the same
+# longer-than-22-char regex treatment /pricing briefly needed (git history has the working
+# pattern).
 #
 # use-regex: "true" makes ingress-nginx treat pathType ImplementationSpecific paths as regex
 # (nginx `location ~*`) instead of literal prefixes — required to express "exactly 7
@@ -70,42 +79,6 @@ spec:
     - host: bl8.us
       http:
         paths:
-          # Known collision between a real ui/ route and the 7-char code shape below —
-          # "pricing" is coincidentally exactly 7 letters, so /pricing and /pricing/success both
-          # matched the redirect regex and 404'd at bl8-redirect instead of reaching bl8-ui
-          # (caught 2026-09-10 by testing against the live deploy, not hypothetically).
-          #
-          # First attempt was a `pathType: Exact` rule here instead, reasoning that nginx's own
-          # `location = <path>` always wins over a regex location unconditionally — that did NOT
-          # work (still 404'd after deploying and confirming via `kubectl` that the Ingress had
-          # actually updated), so `use-regex: "true"` above evidently applies uniformly to every
-          # path on this Ingress regardless of declared pathType, not just ones marked
-          # ImplementationSpecific — meaning Exact paths get swept into the very same
-          # descending-string-length sort described below rather than bypassing it. Second
-          # attempt used `^/pricing$|^/pricing/success$` as a regex instead — the Kubernetes API
-          # itself rejected that outright ("must be an absolute path": every Ingress path,
-          # regex or not, must start with a literal `/`, not `^` — the same lesson this repo hit
-          # once before; see git history) — so the leading `^` had to go. Just dropping it
-          # unwrapped would have been wrong anyway: `^` binds tighter than `|`, so
-          # `^/pricing$|/pricing/success$` would only anchor the FIRST alternative, leaving
-          # "/pricing/success$" free to match as an unanchored substring anywhere in a URI.
-          # `(?:...)` below groups the alternation so the controller's own implicit start-anchor
-          # (inferred, not confirmed — the leading-`/` requirement strongly implies one, but
-          # this hasn't been isolated from the length-sort fix in testing) applies to the whole
-          # group correctly either way. Kept deliberately longer as a raw string (29 chars) than
-          # the code-matcher below (22 chars) so it sorts first regardless — the same proven
-          # mechanism this file already relies on for the ACME-challenge case. A deliberate,
-          # narrow exception to the shape-based approach below — for a known, specific collision,
-          # not a return to enumerating every ui/ route — so add another entry here (also kept
-          # longer than the code-matcher, starting with a literal `/`) only if a *future*
-          # top-level ui/ route also happens to be exactly 7 characters.
-          - path: /(?:pricing|pricing/success)$
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: bl8-ui
-                port:
-                  number: 80
           - path: /[a-zA-Z0-9]{7}(/.*)?$
             pathType: ImplementationSpecific
             backend:
