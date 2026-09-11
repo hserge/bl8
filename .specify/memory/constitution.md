@@ -1,11 +1,24 @@
 <!--
 Sync Impact Report
-Version change: 10.1.0 → 10.1.1
-Modified principles: none (Technology & Architecture Constraints' "Single-domain, shape-routed
-  separation" bullet updated to name ui/'s current authenticated-app path).
-Added sections: none
+Version change: 10.1.1 → 10.2.0
+Modified principles: none (Technology & Architecture Constraints gains a new bullet).
+Added sections: none (new bullet within the existing Technology & Architecture Constraints list)
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (10.2.0, 2026-09-11):
+  - Technology & Architecture Constraints: new bullet, "Database schema changes MUST go through
+    tracked migrations only" — every Postgres schema change must be a versioned migration file
+    under `ui/drizzle/`, applied via `drizzle-kit migrate`, never `drizzle-kit push` or other
+    direct DDL against a real database. MINOR because this is new guidance, not a redefinition
+    of any existing principle. Triggered by a real incident, same day: production's `users`
+    table had drifted from tracked migration history (some schema applied via `push`, never
+    recorded), so a real, already-in-the-codebase migration (adding `users.plan_id`) had never
+    actually been applied there — the missing column then made every Google sign-in fail with a
+    generic "Access Denied" (Auth.js swallows the real INSERT error). Fixed by baselining
+    production's migration history and wiring `drizzle-kit migrate` into the deploy pipeline
+    (`.github/workflows/deploy.yml`'s migrate step, `ui/Dockerfile`'s `migrate` target); this
+    amendment makes tracked-migrations-only a standing rule so the same drift can't recur.
 
 Changed sections (10.1.1, 2026-09-11):
   - Technology & Architecture Constraints: "Single-domain, shape-routed separation" — `/admin/*`
@@ -251,6 +264,18 @@ risk. A feature without tests is not done.
 - `redirect/` is implemented in Go; `ui/` is implemented in SvelteKit. Each component's
   internal technology choices beyond this are that component's own concern, not the other's.
 - Postgres is the only durable datastore for links and click data.
+- **Database schema changes MUST go through tracked migrations only**: any change to Postgres's
+  schema (new tables, columns, indexes, constraints) MUST be captured as a versioned migration
+  file under `ui/drizzle/` and applied via `drizzle-kit migrate` — never via `drizzle-kit push`
+  or any other direct/ad hoc DDL against a real (dev/staging/production) database. This is not
+  hypothetical: a database that had drifted from tracked history (some tables applied via
+  `push`, never recorded in `drizzle.__drizzle_migrations`) once caused a genuine production
+  outage — Google sign-in failing with a generic "Access Denied" because `users` was missing a
+  column a real migration had already added in the codebase, weeks before it was ever applied to
+  the database. The deploy pipeline MUST apply pending migrations
+  (`.github/workflows/deploy.yml`'s migrate step, backed by `ui/Dockerfile`'s `migrate` build
+  target) before rolling out new application code, so application code and the database schema
+  it depends on can never diverge silently.
 - Redis's primary role is as a cache in front of Postgres (used by `redirect/`'s cache-aside
   reads and `ui/`'s write-through writes) and MUST remain safely evictable and rebuildable at
   any time without data loss for that role.
@@ -437,4 +462,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 10.1.1 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-11
+**Version**: 10.2.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-11
