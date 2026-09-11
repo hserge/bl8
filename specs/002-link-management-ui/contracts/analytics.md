@@ -1,6 +1,6 @@
 # Contract: Click Analytics Report
 
-## `GET /links/{code}/analytics`
+## `GET /app/links/{code}/analytics`
 
 Read-only report for a link the caller owns (User Story 3).
 

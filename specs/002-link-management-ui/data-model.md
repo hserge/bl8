@@ -1,20 +1,64 @@
 # Phase 1 Data Model: Link Management Web Application
 
-This app owns the Postgres schema (research.md) and is the only writer of `users` and `links`.
-It reads `click_events` (written by `redirect/`, per that service's data-model.md) but never
-writes to it. It writes through to Redis on every `links` mutation but never reads from Redis.
+This app owns the Postgres schema (research.md) and is the only writer of `users`, `links`,
+`subscriptions`, and `api_keys`. It reads `click_events` (written by `redirect/`, per that
+service's data-model.md) but never writes to it. It writes through to Redis on every `links`
+mutation but never reads from Redis; `subscriptions` and `api_keys` have no Redis presence at
+all — nothing outside this app needs to read them.
 
 ## User Account
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | identifier (PK) | Internal identifier; what `links.owner_id` references. |
+| `id` | identifier (PK) | Internal identifier; what `links.owner_id`, `subscriptions.user_id`, and `api_keys.user_id` reference. |
 | `google_subject_id` | string, unique | Google's stable `sub` claim — the actual identity key (spec.md Assumptions), not email. |
 | `email` | string | From the Google profile; display/contact only, not used for identity matching. |
+| `plan_id` | string, `'free'` \| `'pro'` | Defaults `'free'`; flipped to `'pro'` exclusively by the billing provider's webhook handler on successful subscription (FR-032), never set directly by the user. Read by the active-link cap check (FR-031) and API-key-creation gate (FR-033). |
 | `created_at` | timestamp | Set on first successful Google login (FR-016). |
 
 **Creation**: Row is created automatically on first successful Google login if no existing row
 matches the incoming `google_subject_id` (FR-016) — there is no separate registration form.
+
+**Deletion**: Permanently removable by the owning user (FR-030), typed-email confirmed. Deletes
+this row and every `links` row it owns (and, via that table's own cascade, their `click_events`)
+in one transaction. **Known gap** (spec.md Edge Cases): does not yet also delete this account's
+`subscriptions`/`api_keys` rows first, and both reference this table with no cascade — an
+account holding either is very likely unable to complete deletion today.
+
+## Subscription
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | identifier (PK) | Internal identifier. |
+| `user_id` | identifier (FK → User Account), unique | One subscription per account — the unique constraint is what makes "at most one" (spec.md Key Entities) a database guarantee, not just a convention. No cascade on the account's deletion (see User Account's Known gap above). |
+| `plan_id` | string | Which plan this subscription is for (currently always `'pro'` — Free has no subscription row at all). |
+| `provider` | string, `'paddle'` \| `'stripe'` | Which billing provider owns this subscription. Paddle is the live provider; Stripe is implemented and code-complete but runs on placeholder credentials until a real Stripe account exists (spec.md Assumptions). |
+| `provider_customer_id` | string | The provider's own identifier for this customer. |
+| `provider_subscription_id` | string, unique | The provider's own identifier for this subscription — globally unique since it's the provider's key, not this app's. |
+| `status` | string | The provider's own subscription status (e.g. active, canceled), mirrored as-is. |
+| `current_period_end` | timestamp | The provider's own current billing-period end. |
+| `created_at` / `updated_at` | timestamp | Standard bookkeeping. |
+
+**Creation/updates**: Written exclusively by the billing provider's webhook handler (FR-032);
+this application never originates or edits a row directly. `users.plan_id` is kept in sync by
+that same handler, not derived live from this table on every read.
+
+## API Key
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | identifier (PK) | Internal identifier. |
+| `user_id` | identifier (FK → User Account) | Owning account (FR-033). No cascade on the account's deletion (see User Account's Known gap above). |
+| `name` | string | User-supplied label (FR-033); required, not unique. |
+| `key_hash` | string, unique | A one-way hash of the raw key (FR-033) — the raw value itself is never stored anywhere, only ever returned once, at creation. |
+| `key_prefix` | string | A short, non-secret slice of the raw key, kept so a user can tell their own keys apart in a list (FR-034) without the raw value ever being persisted or re-displayed. |
+| `created_at` | timestamp | Set on creation. |
+| `last_used_at` | timestamp, nullable | Updated on successful authentication; `null` until first use. |
+| `revoked_at` | timestamp, nullable | `null` while active; set once, permanently, on revocation (FR-034) — a key is never un-revoked. |
+
+**Active vs. revoked**: "Active" (counted against the FR-035 cap, and the only state that
+authenticates) means `revoked_at IS NULL`. Revocation is a one-way state transition — there is
+no un-revoke.
 
 ## Short Link
 
@@ -82,9 +126,17 @@ Redis failure.
 
 ## State transitions
 
-- **User Account**: created once (first Google login), never updated or deleted by this
-  application's in-scope stories.
+- **User Account**: created once (first Google login); `plan_id` flips `free ⇄ pro`, both
+  directions driven entirely by billing-provider webhook events (`free → pro` on a successful
+  subscription, `pro → free` on that subscription's cancellation) — never set directly by user
+  action; the account itself can be permanently deleted (FR-030), which is terminal — there is
+  no restore.
 - **Short Link**: `created → active ⇄ deactivated → (deleted)`. Both `active ⇄ deactivated`
   and the destination/expiration fields are changed via update (FR-008); deletion is terminal
   and irreversible (a new link with the same code could later be created once the code is
   free again, but that is a new row, not a resurrection of the old one).
+- **Subscription**: created by the billing provider's webhook on first successful checkout;
+  `status`/`current_period_end` updated by later webhook events as the provider's own state
+  changes; there is no in-app deletion of this row (canceling happens through the provider).
+- **API Key**: `created (active) → (revoked)`. `revoked_at` is set exactly once (FR-034) and
+  never cleared — there is no un-revoke, and no other state a key passes through.

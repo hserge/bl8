@@ -10,6 +10,14 @@
 
 ## Clarifications
 
+### Session 2026-09-09 through 2026-09-11
+
+- Q: Should a user be able to permanently delete their own account? → A: Yes — a typed-confirmation flow (the user must type their own account email to enable the delete action) that permanently removes the account and every link/click history it owns, in one atomic operation; there is no recovery afterward. Captured as FR-030.
+- Q: Should the product introduce a paid tier? → A: Yes — Free and Pro plans. Free keeps every core capability (create/manage/analytics/QR/Google sign-in) but caps how many *currently-active* links an account may hold at once (a standing cap, not a monthly creation quota — deactivating or letting a link expire frees a slot); Pro removes that cap entirely and unlocks programmatic API access. The cap's exact number is operator-configurable, not hardcoded. Captured as FR-031/FR-032.
+- Q: How does a user actually become Pro? → A: A checkout flow through a third-party billing provider (Paddle live; Stripe implemented and code-complete but currently running on placeholder credentials until a real Stripe account exists) — this application never collects or stores payment details itself, only the resulting subscription status via that provider's webhook. Captured as FR-032.
+- Q: What does Pro's "API access" actually unlock? → A: Pro-only named API keys a user creates from their profile page, authenticating a `POST /api/links` endpoint that creates a link the same way the authenticated UI form does — for scripting/CI use, independent of a browser session/cookie. A newly created key's raw value is shown exactly once (at creation) and never recoverable afterward — only a hash is stored — matching this application's existing "trust Google's own session security, don't invent parallel secret-recovery flows" posture. A key can be individually revoked without affecting a user's other keys. Captured as FR-033/FR-034.
+- Q: Should there be a limit on how many API keys one account can hold at once? → A: Yes — a standing cap on *active* (non-revoked) keys, mirroring the Free-plan active-link cap's shape (revoking a key frees a slot; not a lifetime creation quota), operator-configurable, defaulting to 10. Exists to bound abuse/storage growth, not because holding multiple keys is itself a problem. Captured as FR-035.
+
 ### Session 2026-08-14
 
 - Q: Should the rate limit apply only to link creation, or also to update and delete? → A: Create and update, not delete.
@@ -157,6 +165,100 @@ confirming it decodes to that link's short URL.
 
 ---
 
+### User Story 5 - Upgrade to Pro (Priority: P5)
+
+A Free-plan user who's approaching (or has hit) the active-link cap, or who wants programmatic
+API access, subscribes to Pro through a third-party billing provider and immediately gets an
+uncapped account.
+
+**Added (2026-09-10)**: Not part of the original feature description; introduced once a paid
+tier was decided on. See Clarifications above.
+
+**Why this priority**: Monetization matters, but it depends on User Stories 1–2 already working
+(a plan is meaningless without links to be capped or uncapped), and nothing else in the product
+depends on it.
+
+**Independent Test**: Can be fully tested by having a Free-plan user at the active-link cap
+attempt (and fail) to create one more link, complete a Pro checkout, and confirm the same
+creation now succeeds and the cap no longer applies.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Free-plan user with fewer active links than the configured cap, **When** they
+   create a new link, **Then** creation succeeds exactly as it always has.
+2. **Given** a Free-plan user already at the configured active-link cap, **When** they attempt
+   to create another link, **Then** the creation is rejected with a clear reason referencing the
+   cap, and no link is created.
+3. **Given** a Free-plan user at the cap, **When** they deactivate or let an existing link
+   expire, **Then** they immediately have room to create one more, without needing to upgrade.
+4. **Given** a Free-plan user, **When** they complete a Pro checkout through the billing
+   provider, **Then** their account's plan updates to Pro and the active-link cap no longer
+   applies to them, with no limit on how many active links they may hold.
+5. **Given** a Pro subscriber, **When** they view their account, **Then** they can see their
+   current plan and manage their subscription through the billing provider.
+
+---
+
+### User Story 6 - Create links programmatically via the API (Priority: P6)
+
+A Pro subscriber generates a named API key from their profile page and uses it from a script or
+CI job to create short links without going through the browser UI.
+
+**Added (2026-09-10, extended 2026-09-11)**: Not part of the original feature description;
+introduced alongside the Pro plan. See Clarifications above.
+
+**Why this priority**: A genuine differentiator for Pro, but it's an add-on for users who
+already have the core product working — nothing else depends on it.
+
+**Independent Test**: Can be fully tested by a Pro user creating an API key, using its raw value
+to call the link-creation API successfully, then revoking it and confirming it no longer
+authenticates.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Pro subscriber, **When** they create a new named API key, **Then** its raw value
+   is shown to them exactly once and never displayed again afterward.
+2. **Given** a valid, active API key, **When** it's used to call the link-creation API, **Then**
+   a link is created for that key's owner, the same as if they'd used the authenticated UI form.
+3. **Given** a Free-plan user (no Pro subscription), **When** they attempt to create an API key,
+   **Then** the attempt is rejected.
+4. **Given** a Pro subscriber who revokes one of their API keys, **When** that key is used
+   afterward, **Then** authentication fails and no link is created, while the account's other
+   keys continue to work.
+5. **Given** a Pro subscriber already holding the configured maximum number of active API keys,
+   **When** they attempt to create one more, **Then** the attempt is rejected with a clear reason
+   referencing the limit, until they revoke an existing key.
+
+---
+
+### User Story 7 - Delete my account (Priority: P7)
+
+A user who no longer wants their account permanently removes it, along with everything it owns.
+
+**Added (2026-09-09)**: Not part of the original feature description.
+
+**Why this priority**: A low-frequency action that must still be correct, but nothing else in
+the product depends on it, and it's the most destructive, least-reversible action a user can
+take, so it's ordered last.
+
+**Independent Test**: Can be fully tested by creating an account with at least one link and
+some click history, deleting it, and confirming the account, its links, and their click history
+are all gone and the account's short codes are no longer resolvable.
+
+**Acceptance Scenarios**:
+
+1. **Given** a logged-in user on their account page, **When** they type their own account email
+   to confirm and submit account deletion, **Then** their account, every link they own, and
+   those links' click history are permanently removed in one operation.
+2. **Given** a logged-in user attempting to delete their account, **When** the text they type
+   does not exactly match their account email, **Then** the delete action stays disabled and no
+   deletion occurs.
+3. **Given** an account that has just been deleted, **When** anyone requests one of its former
+   short codes, **Then** the redirect service reports it as not-found, the same as any code that
+   never existed.
+
+---
+
 ### Edge Cases
 
 - What happens when two different links (even from different owners) use the exact same SEO
@@ -198,6 +300,24 @@ confirming it decodes to that link's short URL.
   triggered by the public shorten form (FR-028/FR-029)? No link is created — the write never
   happens until authentication succeeds (FR-001) — and no data is retained beyond what was
   already present in that in-progress browser session.
+- What happens to a Pro subscriber's active-link cap if their subscription is later canceled or
+  lapses? They revert to the Free plan and its cap; any links already active past that cap are
+  left as-is (not force-deactivated), but they cannot create another active link until they're
+  back under the cap or resubscribe (FR-031/FR-032).
+- What happens to a Pro subscriber's existing API keys if their subscription is canceled? The
+  keys themselves are not automatically revoked — they still exist and are still listed — but
+  they stop authenticating immediately, since plan status is checked live on every API request,
+  not just at key-creation time (see Assumptions). They'd work again without needing to be
+  recreated if the account becomes Pro again.
+- What happens when an API key is used to attempt something other than link creation (e.g. an
+  update or delete)? There is no such route — the API surface for a key is exactly the same
+  create-only capability as `POST /api/links`, nothing more (FR-033).
+- What happens when an account being deleted (FR-030) has a Pro subscription or any API keys?
+  **Known gap, flagged 2026-09-11, not yet fixed**: `subscriptions` and `api_keys` (both added
+  2026-09-10) were never reconciled with the account-deletion implementation, which predates
+  them — it deletes `links` then the `users` row, but not `subscriptions`/`api_keys`, and both
+  reference `users.id` with no cascade. An account that has ever subscribed to Pro or created an
+  API key almost certainly cannot delete itself today, violating Acceptance Scenario 1 above.
 
 ## Requirements *(mandatory)*
 
@@ -306,10 +426,58 @@ confirming it decodes to that link's short URL.
   them to the create form with their original input preserved and validation errors shown on
   failure (FR-019, FR-021).
 
+- **FR-030**: The system MUST allow a logged-in user to permanently delete their own account.
+  The action MUST require the user to type their own account email to confirm before it can be
+  submitted. Deletion MUST remove the account and every link (and, via FR-022's existing
+  cascade, click history) it owns in a single operation; it MUST NOT be partially applied or
+  recoverable afterward. **Known gap** — see Edge Cases: this is not yet reconciled with
+  `subscriptions`/`api_keys` (FR-032/FR-033), added after this requirement's original
+  implementation.
+- **FR-031**: The system MUST support exactly two account plans — Free and Pro — with every
+  capability in FR-001 through FR-029 available on both. Free MUST cap how many of an account's
+  links may be simultaneously active at once; Pro MUST NOT apply this cap. The cap is a standing
+  limit on currently-active links, not a monthly or lifetime creation quota — deactivating or
+  letting a link expire MUST immediately free a slot. The cap's specific number MUST be
+  configurable without a code change, not hardcoded.
+- **FR-032**: The system MUST let a Free-plan user upgrade to Pro by completing checkout through
+  a third-party billing provider; the system MUST NOT collect or store payment card details
+  itself. On successful subscription (via the provider's webhook), the account's plan MUST
+  update to Pro without requiring the user to take any further action. The system MUST let a Pro
+  subscriber reach their subscription management through the billing provider from their
+  account page.
+- **FR-033**: The system MUST let a Pro subscriber (and MUST NOT let a Free-plan user) create a
+  named API key from their account page. Creating one MUST require a name. The raw key value
+  MUST be shown to the user exactly once, at creation; the system MUST NOT store it in a
+  recoverable form afterward, and MUST NOT display it again on any later view. Every active API
+  key MUST authenticate a link-creation-only API route (`POST /api/links`), independent of the
+  browser session/cookie authentication used everywhere else in this application, creating a
+  link for that key's owning account and applying the exact same validation and rejection rules
+  (FR-005–FR-007, FR-019, FR-021, FR-023) as the authenticated UI create flow. The route MUST
+  re-verify the owning account is still on the Pro plan on every request (not only once, at the
+  key's own creation), so a lapsed subscription stops authentication immediately without
+  requiring the key itself to be separately revoked.
+- **FR-034**: The system MUST let a Pro subscriber view a list of their own active API keys
+  (name, a non-secret identifying prefix, creation date, last-used date) and individually revoke
+  any one of them without affecting their other keys. A revoked key MUST immediately stop
+  authenticating.
+- **FR-035**: The system MUST cap how many active (non-revoked) API keys a single account may
+  hold at once, configurable without a code change, defaulting to 10. Revoking a key MUST
+  immediately free a slot for creating another, the same standing-cap shape as FR-031's
+  active-link cap.
+
 ### Key Entities
 
 - **User Account**: A person who can log in and who owns short links. Links, their updates,
-  deletions, and analytics views are all scoped to the owning account.
+  deletions, and analytics views are all scoped to the owning account. Also owns a plan
+  (FR-031), at most one subscription (FR-032), and zero or more API keys (FR-033–FR-035).
+  Can permanently delete itself and everything it owns (FR-030).
+- **Subscription**: Represents a User Account's paid relationship with a billing provider —
+  which provider, its plan, and its current status. Created and kept in sync exclusively by
+  that provider's webhook (FR-032); this application never originates or edits it directly.
+- **API Key**: A named, Pro-only credential (FR-033) belonging to one User Account, used to
+  authenticate the link-creation API independent of a browser session. Its raw value exists
+  only once, at creation; the account can list its own keys (without their raw values) and
+  revoke any one individually (FR-034).
 - **Short Link**: A destination URL together with its system-generated code, an optional
   cosmetic slug tied 1:1 to that code, owner, optional expiration date, and
   active/deactivated status. Created, updated, and deleted exclusively through this
@@ -346,6 +514,15 @@ confirming it decodes to that link's short URL.
 - **SC-010**: A signed-out visitor who starts creating a link on the public landing page and
   completes Google sign-in ends up with that exact link created, without needing to re-enter
   the URL, slug, or expiration.
+- **SC-011**: 100% of link-creation attempts by a Free-plan account already at the active-link
+  cap are rejected, with no link created; the same account can create again as soon as it's
+  back under the cap, with no other action required.
+- **SC-012**: A Free-plan user who completes a Pro checkout can create an unlimited number of
+  active links and a Pro-only API key immediately afterward, with no additional manual step.
+- **SC-013**: A revoked API key stops authenticating within the same request cycle — there is
+  no window where a just-revoked key still works.
+- **SC-014**: A deleted account, and everything it owned, is fully unresolvable and
+  unrecoverable immediately afterward, with no partial or delayed cleanup.
 
 ## Assumptions
 
@@ -379,3 +556,14 @@ confirming it decodes to that link's short URL.
 - If Google's OAuth service is unreachable during login, the user sees a standard error
   message (e.g. "sign-in temporarily unavailable, try again") — there is no fallback login
   method, since Google is the only login method by design (FR-015).
+- A canceled/lapsed Pro subscription is checked live on every API-authenticated request (FR-033),
+  not just at key-creation time — so access via an existing, still-active key stops immediately
+  once the account is no longer Pro, without needing to also revoke the key itself. Creation of
+  a *new* key (FR-033) is a separate, one-time gate at the moment of creation.
+- Which specific Pro-plan capabilities beyond the active-link cap and API access actually ship
+  (e.g. exportable analytics, priority support) is marketing/roadmap scope, not this
+  specification's — only capabilities that are actually implemented and testable are captured
+  as FRs here.
+- The billing provider (Paddle or Stripe) is solely responsible for payment collection, card
+  storage, and PCI compliance; this application only ever receives and stores the resulting
+  plan/subscription status, never payment instrument details.

@@ -15,7 +15,7 @@ requests (FR-001).
   (a user can't see another user's edit form to submit to), so they don't need field-level
   detail.
 
-## `GET /links`
+## `GET /app/links`
 
 Lists the authenticated user's own links (supports User Story 2's "reviews the links they've
 created"). Never returns another user's links (FR-010).
@@ -27,7 +27,7 @@ cap on total links per user — additional pages simply continue the same orderi
   `expires_at`, `created_at`), plus pagination metadata (e.g. a cursor or page number and
   whether a next page exists).
 
-## `GET /links/{code}`
+## `GET /app/links/{code}`
 
 The detail/confirmation page for a single link the caller owns (User Story 1's post-create
 confirmation; extended by User Story 2 with edit/delete controls).
@@ -38,19 +38,19 @@ confirmation; extended by User Story 2 with edit/delete controls).
 | Rejected — not owner | `code` exists but `owner_id` ≠ caller | `403 Forbidden`, per contracts/links.md's Response Body Conventions (FR-010). |
 | Rejected — not found | `code` doesn't exist | `404 Not Found`, per contracts/links.md's Response Body Conventions. |
 
-## `GET /links/new` — carried-over submission from the public landing page (resolved 2026-08-17)
+## `GET /app/links/new` — carried-over submission from the public landing page (resolved 2026-08-17)
 
-`/links/new` is still gated by the auth hook like every other `/links` route (no anonymous
+`/app/links/new` is still gated by the auth hook like every other `/app/links` route (no anonymous
 access to the route itself). This entry only exists because the public landing page's shorten
 form (research.md's "Public shorten-form: auth gating and continuation") may redirect an
 authenticated user here with `?url=...&slug=...&expiresAt=...` query parameters, carried
 through the Google sign-in `callbackUrl`. When present and the session is valid, the `load`
-function completes creation server-side using the same validation as `POST /links/new` below
+function completes creation server-side using the same validation as `POST /app/links/new` below
 and redirects to the result page — the user never has to re-submit. If validation fails, the
 page renders normally with the fields pre-filled from the query parameters and the errors
 shown, exactly as a failed `POST` would.
 
-## `POST /links/new` (form action)
+## `POST /app/links/new` (form action)
 
 Creates a link (User Story 1). The `code` is always system-generated — there is no way to
 supply your own; `slug` is a separate, optional, cosmetic value. Also reachable, with
@@ -72,7 +72,7 @@ requires an existing session, per FR-001; research.md).
 | Rejected — expiration in the past | `expiresAt` ≤ now | `400 Bad Request`, form re-rendered with a validation error (FR-023, FR-019); no link created. |
 | Rejected — rate limited | Rate limit exceeded for the caller's account | `429 Too Many Requests` (FR-019), no link created. |
 
-## `PATCH /links/{code}` (form action on the link's own page)
+## `PATCH /app/links/{code}` (form action on the link's own page)
 
 Updates a link the caller owns (User Story 2). Fields: `destinationUrl`, `slug`, `expiresAt`,
 `isActive` (any subset; `isActive` is the deactivation mechanism, per data-model.md). Changing
@@ -91,7 +91,7 @@ always requires an existing session, per FR-001/FR-010).
 | Rejected — expiration in the past | New `expiresAt` ≤ now | `400 Bad Request`, form re-rendered with a validation error (FR-023, FR-019); existing link left unchanged. |
 | Rejected — rate limited | Rate limit exceeded for the caller's account | `429 Too Many Requests` (FR-017, FR-019); no change made. |
 
-## `DELETE /links/{code}` (form action)
+## `DELETE /app/links/{code}` (form action)
 
 Permanently deletes a link the caller owns (User Story 2). Not rate-limited (FR-017).
 

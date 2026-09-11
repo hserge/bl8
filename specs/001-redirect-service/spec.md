@@ -16,6 +16,10 @@
 - Q: Should the QR endpoint support a "fancier" generator with selectable preset styles? → A: Yes — clarified via AskUserQuestion that this means a picker across multiple presets (not one fixed fancier default), so it's real caller-visible customization. An optional `?style=` query param selects from a small, fixed, closed enum (`classic`, `rounded`, `dark`); an unrecognized or missing value silently falls back to `classic` rather than erroring. Captured as an update to FR-022. See `.specify/memory/constitution.md` v7.0.0.
 - Q: Should styling go further — independent dot shape, corner-marker shape, and an arbitrary background color? → A: Yes, superseding the single `style` enum. `dots` (`square`/`round`) and `corners` (`square`/`round`/`half`) stay small closed enums; `bg` accepts any well-formed hex color, unenumerated, since color isn't a discrete space the way shape is. Foreground/ink color is never a parameter — it's derived from `bg`'s luminance so no combination can render unreadable. Corner markers render as one unified layered shape per marker (not per-module dots, which is what the prior per-module circle rendering actually produced). Captured as an update to FR-022. See `.specify/memory/constitution.md` v8.0.0.
 
+### Session 2026-09-02
+
+- Q: Should foreground/ink color also become a caller-supplied parameter, alongside `bg`? → A: Yes — `fg` joins `bg` as a free-form, format-bounded (not enum-bounded) hex color. When `fg` is omitted or malformed, the service MUST still fall back to deriving it algorithmically from `bg` exactly as before, so a caller who supplies only a background still can't end up with an unreadable code by omission — but a caller who explicitly supplies both is trusted to have picked a readable pair. This directly reverses v8.0.0's "foreground/ink color is never a caller-supplied parameter at all," superseding it rather than extending it unchanged. Captured as an update to FR-022. See `.specify/memory/constitution.md` v9.0.0.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Follow a short link to its destination (Priority: P1)
@@ -205,12 +209,15 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
   lookup and active/expiry status rules as the redirect route (FR-002–FR-008) — not a separate
   set of business logic — and performing no ownership or authentication check (moved from
   `ui/`, constitution v6.0.0; Session 2026-08-24 clarification above). The route MUST accept
-  optional `dots` (`square`/`round`), `corners` (`square`/`round`/`half`), and `bg` (any
-  well-formed hex color) parameters; an unrecognized/malformed or missing value for any of them
-  MUST fall back to that parameter's default rather than rejecting the request; foreground/ink
-  color MUST be derived from `bg`, never accepted as its own parameter (constitution v8.0.0,
-  superseding v7.0.0's single `style` enum). The response MUST include
-  `Access-Control-Allow-Origin: *` so it can be fetched cross-origin for client-side download.
+  optional `dots` (`square`/`round`), `corners` (`square`/`round`/`half`), `bg` (any well-formed
+  hex color), and `fg` (any well-formed hex color) parameters; an unrecognized/malformed or
+  missing value for any of them MUST fall back to that parameter's default rather than rejecting
+  the request. When `fg` is omitted or malformed, it MUST fall back to being derived
+  algorithmically from `bg` (constitution v9.0.0, superseding v8.0.0's "foreground is never a
+  parameter"), so a caller supplying only `bg` still cannot end up with an unreadable code by
+  omission — but a caller who explicitly supplies both is trusted to have picked a readable
+  pair. The response MUST include `Access-Control-Allow-Origin: *` so it can be fetched
+  cross-origin for client-side download.
 
 ### Key Entities
 
