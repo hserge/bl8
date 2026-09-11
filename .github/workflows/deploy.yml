@@ -8,6 +8,7 @@ on:
 
 env:
   IMAGE_UI: ghcr.io/${{ github.repository_owner }}/bl8-ui
+  IMAGE_UI_MIGRATE: ghcr.io/${{ github.repository_owner }}/bl8-ui-migrate
   IMAGE_REDIRECT: ghcr.io/${{ github.repository_owner }}/bl8-redirect
 
 jobs:
@@ -82,6 +83,20 @@ jobs:
             -t "${{ env.IMAGE_REDIRECT }}:latest" \
             ./redirect
 
+      # ui/Dockerfile's `migrate` target: full (non-pruned) deps for drizzle-kit plus the
+      # drizzle/ migration files, neither of which the prod image carries — run as a one-off
+      # Job against the real DATABASE_URL before the deploy job rolls out bl8-ui, so a schema
+      # change never ships in application code without the DB change that backs it (see the
+      # deploy job's own migration step below for why this exists).
+      - name: Build ui migrator
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          docker build \
+            --target migrate \
+            -t "${{ env.IMAGE_UI_MIGRATE }}:${IMAGE_TAG}" \
+            ./ui
+
       - name: Push ui and redirect
         if: github.event_name == 'push'
         env:
@@ -89,6 +104,7 @@ jobs:
         run: |
           docker push "${{ env.IMAGE_UI }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_UI }}:latest"
+          docker push "${{ env.IMAGE_UI_MIGRATE }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_REDIRECT }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_REDIRECT }}:latest"
 
@@ -183,6 +199,46 @@ jobs:
             # TLS: no manual cert/key secrets — cert-manager's existing letsencrypt-prod
             # ClusterIssuer issues and rotates bl8-ui-tls/bl8-redirect-tls itself, driven by the
             # annotations on ~/.k8s/ingress.yml (same pattern as this cluster's other ingresses).
+
+            # Run pending database migrations before rolling out the new image. This pipeline
+            # previously had none at all — a schema change could ship in application code with
+            # no corresponding DB change, and the very first write against the stale table would
+            # fail. That's not hypothetical: it's exactly how a real "Access Denied" on Google
+            # sign-in turned out to trace back to auth.ts's signIn callback failing its
+            # `INSERT INTO users` against a users table still missing the plan_id column that
+            # migration 0004 added — @auth/core wraps any exception thrown there into a generic
+            # "AccessDenied" and discards the real error (see that callback's own comment).
+            #
+            # Runs as a one-off Job using the migrate image's own drizzle/ folder + drizzle-kit
+            # (both deliberately absent from the prod image) against the same bl8-ui-secrets
+            # DATABASE_URL the app itself uses, which is why this needs to come after that
+            # secret is created above. Jobs are immutable once created, so delete any previous
+            # run under this fixed name first rather than letting a retry collide with it.
+            kubectl delete job bl8-ui-migrate -n bl8 --ignore-not-found || exit 1
+            cat <<JOBEOF | kubectl apply -f - || exit 1
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: bl8-ui-migrate
+              namespace: bl8
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  restartPolicy: Never
+                  containers:
+                    - name: migrate
+                      image: ${{ env.IMAGE_UI_MIGRATE }}:${IMAGE_TAG}
+                      envFrom:
+                        - secretRef:
+                            name: bl8-ui-secrets
+            JOBEOF
+            if ! kubectl wait --for=condition=complete job/bl8-ui-migrate -n bl8 --timeout=120s; then
+              echo "Migration job failed or timed out — logs:"
+              kubectl logs job/bl8-ui-migrate -n bl8 --tail=200
+              exit 1
+            fi
+            echo "Database migrations applied"
 
             # ConfigMaps first (deployments read them via envFrom on pod start).
             kubectl apply -f ~/.k8s/ui-configmap.yml || exit 1
