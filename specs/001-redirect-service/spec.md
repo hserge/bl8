@@ -10,6 +10,19 @@
 
 ## Clarifications
 
+### Session 2026-09-16
+
+- Q: The 404/410 responses currently have an empty body — a visitor sees a blank page. Should
+  this service render something, and should that rendering live here or be delegated to `ui/`?
+  → A: Render it here, in `redirect/` itself — the user explicitly wants zero traffic ever
+  routed to `ui/` for these cases, to preserve this service's independent scaling (Principle I).
+  A small, static, branded HTML body (embedded at build time, no external fetches, no
+  per-request dynamic content) now replaces the empty body for both 404 and 410. The existing
+  FR-021 indistinguishability guarantee is unchanged and explicitly carried forward: the 404
+  body is the exact same static asset regardless of whether the cause is a nonexistent code, an
+  expired code, or a mismatched slug — it never reveals which one applies. Captured as FR-023.
+  See `.specify/memory/constitution.md` v11.0.0 (Principle II's fourth narrow exception).
+
 ### Session 2026-08-24
 
 - Q: Should QR code generation move here from `ui/`? → A: Yes — a third route, `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL. Reuses the exact same lookup and active/expiry rules as the redirect route (FR-005–FR-008); no ownership or auth check, since this service performs no authentication by rule (FR-017) and the encoded URL is already public via `GET /{code}` itself. Captured as FR-022, and FR-019 is updated from "no routes other than redirect and health" to include this third route. See `.specify/memory/constitution.md` v6.0.0.
@@ -77,6 +90,9 @@ redirect and no click event recorded.
    it, **Then** the service reports the link as gone (deactivation takes precedence).
 5. **Given** any of the above non-redirect outcomes, **When** the request completes, **Then**
    no click event is recorded, since no successful redirect occurred.
+6. **Given** a nonexistent code, an expired code, or a code requested with a mismatched slug,
+   **When** a visitor requests it, **Then** they see the exact same static, branded not-found
+   page in every case (FR-023) — nothing in the page tells them which of the three occurred.
 
 ---
 
@@ -218,6 +234,14 @@ active/expiry rules as the redirect route apply (missing/expired → 404, deacti
   omission — but a caller who explicitly supplies both is trusted to have picked a readable
   pair. The response MUST include `Access-Control-Allow-Origin: *` so it can be fetched
   cross-origin for client-side download.
+- **FR-023**: The redirect route's `404` and `410` responses MUST each include a small, static,
+  branded HTML body in place of an empty response (Session 2026-09-16 clarification above;
+  constitution v11.0.0). The `404` body MUST be identical regardless of whether the cause is a
+  nonexistent code, an expired code, or a mismatched slug (FR-021) — content MUST NOT reveal
+  which of those applies. Neither body MUST include externally-fetched resources (stylesheet,
+  script, font) or per-request dynamic content; the only permitted scripting is a "Back" control
+  invoking local browser-history navigation. This body MUST NOT be added to the QR route's own
+  404/410 responses (FR-022).
 
 ### Key Entities
 
