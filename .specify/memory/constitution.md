@@ -1,10 +1,44 @@
 <!--
 Sync Impact Report
-Version change: 10.1.1 → 10.2.0
+Version change: 11.0.0 → 11.1.0
 Modified principles: none (Technology & Architecture Constraints gains a new bullet).
-Added sections: none (new bullet within the existing Technology & Architecture Constraints list)
+Added sections: none
 Removed sections: none
 Follow-up TODOs: none
+
+Changed sections (11.1.0, 2026-09-16):
+  - Technology & Architecture Constraints: new bullet, "Billing MUST be provider-agnostic behind
+    one interface" — every billing provider implements the shared `BillingProvider` interface
+    (`ui/src/lib/server/billing/types.ts`); application code resolves a provider by id via
+    `resolveProvider()`, never via an inline `provider === 'stripe'`-style check. MINOR because
+    this documents and locks in an architecture the code already mostly had (webhook
+    verification was already behind the interface) rather than reversing anything — it closes
+    the one real gap (subscription-management portal URLs, previously a raw ternary in
+    `profile/+page.server.ts`'s `manageBilling` action) and makes explicit the one deliberate
+    exception already reasoned about in code comments: checkout initiation stays
+    provider-specific because Paddle's client-side overlay and Stripe's server-redirect are
+    genuinely different interaction models, not just different backends for the same UI —
+    unifying them would hide that difference rather than model it (Principle VI). Triggered by
+    the user's request for a self-contained, plugin-style billing architecture where adding a
+    provider means adding one file, not touching application code; confirmed via AskUserQuestion
+    that checkout should stay outside the shared interface for the reason above rather than be
+    forced in with a discriminated-union return type.
+
+Changed sections (11.0.0, 2026-09-16):
+  - II. Redirect Is a Minimal Read-Path Service: adds a fourth narrow exception — the redirect
+    route's 404/410 responses MAY include a small, static, branded HTML body (embedded at build
+    time via `//go:embed`, no external stylesheet/script/font fetch, no network requests, no
+    per-visitor or per-request dynamic data) instead of an empty response, with one narrow
+    scripting allowance (a "Back" control's trivial local `history.back()`). MAJOR because the
+    principle's own text caps this at "exactly three narrow exceptions"; adding a fourth reverses
+    that explicit count, the same shape of change 7.0.0 and 8.0.0 each made for this same
+    principle. The existing FR-021 indistinguishability guarantee (nonexistent code, expired
+    code, and wrong slug must still read identically) is carried forward explicitly, so this
+    body content can't become a side channel that leaks which of those three applies. Triggered
+    by the user's own observation that a bare status code leaves visitors on a blank page, and
+    their explicit requirement that rendering stay entirely inside `redirect/` rather than being
+    delegated to `ui/`, preserving Principle I's independent-scaling rationale for the
+    high-traffic read path.
 
 Changed sections (10.2.0, 2026-09-11):
   - Technology & Architecture Constraints: new bullet, "Database schema changes MUST go through
@@ -147,7 +181,7 @@ and release on its own schedule, unconstrained by the slower-moving, feature-hea
 optionally `GET /{code}/{slug}` when the code has a registered slug; a QR-code image for
 the same code — `GET /{code}/qr`, returning a PNG that encodes the code's canonical short URL;
 and `GET /health`. It MUST NOT gain create, update, delete, or list endpoints, authentication,
-or request validation beyond looking up the code, with exactly three narrow exceptions: (1) when
+or request validation beyond looking up the code, with exactly four narrow exceptions: (1) when
 a second path segment is present on the redirect route and isn't the literal `qr`, it MUST be
 checked for exact equality against the looked-up record's registered slug (a field already
 fetched as part of the same lookup), returning 404 on mismatch; (2) the QR endpoint MUST reuse
@@ -168,11 +202,19 @@ caller who explicitly supplies both is trusted to have picked a readable pair, s
 alone was already trusted not to be paired with unreadable content elsewhere on the page. Every
 one of these parameters, valid or not, MUST silently fall back to its default (never a request
 error), since they are cosmetic, not validated, inputs — an unrecognized shape name or malformed
-hex string is simply treated as absent. Neither this nor the other two exceptions is general
-request validation, and none MUST grow into anything more — no partial matching, normalization,
-slug-specific business logic, logo embedding, arbitrary sizing, or any QR parameter beyond
-`dots`/`corners`/`bg`/`fg` as specified here. It is stateless and MUST be safe to run as many
-identical, horizontally scaled instances with no shared in-process state.
+hex string is simply treated as absent. (4) the redirect route's `404`/`410` responses MAY
+include a small, static, branded HTML body — embedded at build time (`//go:embed`), with no
+external stylesheet, script, or font fetch, no network requests, and no per-visitor or
+per-request dynamic data — in place of an empty response body; this body MAY include one narrow,
+dependency-free scripting allowance (a "Back" control invoking local browser-history navigation)
+but MUST NOT otherwise include client-side scripting, and MUST NOT distinguish "nonexistent
+code," "expired code," or "wrong slug" from one another in its content, preserving the
+indistinguishability FR-021 already requires of the underlying 404 status itself. None of these
+four exceptions is general request validation, and none MUST grow into anything more — no
+partial matching, normalization, slug-specific business logic, logo embedding, arbitrary sizing,
+any QR parameter beyond `dots`/`corners`/`bg`/`fg`, or any HTML/scripting beyond the fixed
+404/410 bodies and their local Back control, as specified here. It is stateless and MUST be safe
+to run as many identical, horizontally scaled instances with no shared in-process state.
 Any feature request that would add write behavior, business logic, or auth to `redirect/`
 belongs in `ui/` instead.
 
@@ -197,7 +239,11 @@ colors symmetrically instead of arbitrarily trusting a caller with one continuou
 parameter but not the other; the omission-safety `bg` alone never needed (an unreadable code by
 simple oversight) is preserved by keeping auto-contrast as `fg`'s default when unset, which is
 the actual risk the original prohibition existed to prevent — not the mere existence of a second
-color parameter.
+color parameter. The 404/410 HTML-body exception is bounded the same narrow way the others are:
+it adds no lookup, no new status code, and no per-request decision beyond which of exactly two
+fixed bodies to serve for an outcome the service already computes — rendering, not business
+logic — so the tiny, fixed surface area this principle protects stays intact even though the
+byte count of a response does not.
 
 ### III. Cache-Aside Reads, Postgres as Source of Truth
 
@@ -332,6 +378,19 @@ risk. A feature without tests is not done.
   Principle I's independence concrete at the deployment level, not just at the code level: two
   backend Services behind one Ingress, not two components that happen to share a path prefix
   scheme.
+- **Billing MUST be provider-agnostic behind one interface**: every billing provider (Paddle,
+  Stripe, and any future one) implements the shared `BillingProvider` interface
+  (`ui/src/lib/server/billing/types.ts`) — webhook verification and subscription-management
+  portal URLs both go through it, resolved by provider id via `resolveProvider()`
+  (`ui/src/lib/server/billing/index.ts`), never by a `provider === 'stripe'`-style check inlined
+  in route code. Adding a provider MUST require only one new file satisfying that interface plus
+  one entry in `resolveProvider`'s lookup map — no other application code should need to change.
+  The one deliberate exception is checkout initiation itself: Paddle's is a client-side overlay
+  with no server round-trip, Stripe's is a server-created hosted redirect — genuinely different
+  interaction models, not just different backends for the same UI, so unifying them behind one
+  method would hide that difference rather than model it (Principle VI). Checkout-initiation
+  code MAY branch on which provider is currently configured (`billingProvider` in
+  `$lib/server/billing`); no other billing code may branch on provider identity.
 
 ## Frontend Design Workflow
 
@@ -462,4 +521,4 @@ All feature work must be checked against these principles during planning and re
 deviations require an explicit, documented justification in the relevant plan, not silent
 drift. Complexity that isn't justified by a real, current need should be rejected in review.
 
-**Version**: 10.2.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-11
+**Version**: 11.1.0 | **Ratified**: 2026-08-14 | **Last Amended**: 2026-09-16
