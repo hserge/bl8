@@ -20,10 +20,10 @@ all — nothing outside this app needs to read them.
 matches the incoming `google_subject_id` (FR-016) — there is no separate registration form.
 
 **Deletion**: Permanently removable by the owning user (FR-030), typed-email confirmed. Deletes
-this row and every `links` row it owns (and, via that table's own cascade, their `click_events`)
-in one transaction. **Known gap** (spec.md Edge Cases): does not yet also delete this account's
-`subscriptions`/`api_keys` rows first, and both reference this table with no cascade — an
-account holding either is very likely unable to complete deletion today.
+this row and every `links` (and, via that table's own cascade, their `click_events`),
+`subscriptions`, and `api_keys` row it owns, in one transaction — `subscriptions.user_id` and
+`api_keys.user_id` both reference this table with no cascade, so deleteAccount.ts deletes them
+explicitly before the `users` row itself (fixed 2026-09-16, see spec.md Edge Cases).
 
 ## Subscription
 

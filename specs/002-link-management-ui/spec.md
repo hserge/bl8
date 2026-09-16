@@ -313,11 +313,11 @@ are all gone and the account's short codes are no longer resolvable.
   update or delete)? There is no such route — the API surface for a key is exactly the same
   create-only capability as `POST /api/links`, nothing more (FR-033).
 - What happens when an account being deleted (FR-030) has a Pro subscription or any API keys?
-  **Known gap, flagged 2026-09-11, not yet fixed**: `subscriptions` and `api_keys` (both added
-  2026-09-10) were never reconciled with the account-deletion implementation, which predates
-  them — it deletes `links` then the `users` row, but not `subscriptions`/`api_keys`, and both
-  reference `users.id` with no cascade. An account that has ever subscribed to Pro or created an
-  API key almost certainly cannot delete itself today, violating Acceptance Scenario 1 above.
+  **Fixed 2026-09-16** (flagged 2026-09-11): `deleteAccount.ts` now deletes `subscriptions` and
+  `api_keys` for the account, alongside `links`, before deleting the `users` row itself, all in
+  one transaction — both tables reference `users.id` with no cascade, so they must be removed
+  explicitly. An account that has subscribed to Pro or created API keys can delete itself
+  normally now (Acceptance Scenario 1).
 
 ## Requirements *(mandatory)*
 
@@ -429,10 +429,8 @@ are all gone and the account's short codes are no longer resolvable.
 - **FR-030**: The system MUST allow a logged-in user to permanently delete their own account.
   The action MUST require the user to type their own account email to confirm before it can be
   submitted. Deletion MUST remove the account and every link (and, via FR-022's existing
-  cascade, click history) it owns in a single operation; it MUST NOT be partially applied or
-  recoverable afterward. **Known gap** — see Edge Cases: this is not yet reconciled with
-  `subscriptions`/`api_keys` (FR-032/FR-033), added after this requirement's original
-  implementation.
+  cascade, click history), subscription (FR-032), and API key (FR-033) it owns in a single
+  operation; it MUST NOT be partially applied or recoverable afterward.
 - **FR-031**: The system MUST support exactly two account plans — Free and Pro — with every
   capability in FR-001 through FR-029 available on both. Free MUST cap how many of an account's
   links may be simultaneously active at once; Pro MUST NOT apply this cap. The cap is a standing
