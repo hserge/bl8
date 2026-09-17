@@ -172,8 +172,9 @@ jobs:
 
             # bl8-ui runtime secrets — see ui/README.md's "Environment variables" for what each
             # one is; UI_REDIS_URL already carries its password embedded (redis://:pass@host:port).
-            # Paddle/Stripe values are currently sandbox/placeholder (BILLING_PROVIDER=paddle in
-            # ui-configmap.yml is the one actually live) — swap for real credentials once they exist.
+            # Stripe is the live billing provider (BILLING_PROVIDER=stripe in ui-configmap.yml,
+            # switched 2026-09-17); Paddle credentials stay wired in too since its webhook route
+            # keeps verifying/applying events regardless of which provider is active.
             kubectl create secret generic bl8-ui-secrets \
               --namespace bl8 \
               --from-literal=DATABASE_URL="${{ secrets.UI_DATABASE_URL }}" \

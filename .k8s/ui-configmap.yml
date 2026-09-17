@@ -28,13 +28,13 @@ data:
   FREE_PLAN_LINK_LIMIT: "25"
   # Active API-key cap per account (ui/src/lib/server/apiKeys.ts).
   API_KEY_LIMIT: "10"
-  # Billing — Paddle is the live provider, against a real sandbox account; Stripe stays
-  # code-complete but on placeholder credentials (its secrets in bl8-ui-secrets) until a real
-  # Stripe account exists.
-  BILLING_PROVIDER: "paddle"
+  # Billing — Stripe is now the live provider (switched 2026-09-17); Paddle stays code-complete
+  # and its webhook route keeps verifying/applying events regardless (see
+  # $lib/server/billing/index.ts's own comment), so an existing Paddle subscriber isn't affected.
+  BILLING_PROVIDER: "stripe"
   PADDLE_ENVIRONMENT: "sandbox"
   # Client-side Paddle checkout token — safe to expose (see ui/.env.example's own note).
   PUBLIC_PADDLE_CLIENT_TOKEN: "test_90c89af6bcdc7ec6a9b5f328656"
   PUBLIC_PADDLE_ENVIRONMENT: "sandbox"
   PUBLIC_PADDLE_PRO_PRICE_ID: "pri_01m2406tahap3kwc14e8vt5pn9"
-  STRIPE_PRO_PRICE_ID: "price_placeholder"
+  STRIPE_PRO_PRICE_ID: "price_1UEAc6DwLk8HikBvayw9haOi"
