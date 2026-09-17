@@ -1,0 +1,34 @@
+# __IMAGE_UI_RECONCILE__ is templated by the deploy workflow into a real ghcr.io ref + tag
+# before this is applied — see .github/workflows/deploy.yml. Runs
+# ui/scripts/reconcile-subscriptions.ts (see its own header comment) daily against the real
+# bl8-ui-secrets/bl8-ui-config the app itself uses, and posts its report to
+# SLACK_RECONCILE_WEBHOOK_URL.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bl8-ui-reconcile
+  namespace: bl8
+spec:
+  # 03:17 UTC — off-peak, and not on-the-hour so it doesn't line up with any other cluster cron.
+  # Change freely; there is nothing else this cadence needs to line up with.
+  schedule: "17 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-pull-secret
+          containers:
+            - name: reconcile
+              image: __IMAGE_UI_RECONCILE__
+              envFrom:
+                - configMapRef:
+                    name: bl8-ui-config
+                - secretRef:
+                    name: bl8-ui-secrets

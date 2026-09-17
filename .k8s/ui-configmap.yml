@@ -1,8 +1,10 @@
 # Non-secret runtime config for bl8-ui. Secrets (DATABASE_URL, REDIS_URL, AUTH_SECRET,
 # GOOGLE_CLIENT_ID/SECRET, PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, STRIPE_SECRET_KEY,
-# STRIPE_WEBHOOK_SECRET) are created separately by the deploy workflow as a Secret named
-# bl8-ui-secrets — see ui/README.md's "Environment variables" and ui/.env.example for the full
-# list this splits across the two.
+# STRIPE_WEBHOOK_SECRET, SLACK_RECONCILE_WEBHOOK_URL) are created separately by the deploy
+# workflow as a Secret named bl8-ui-secrets — see ui/README.md's "Environment variables" and
+# ui/.env.example for the full list this splits across the two. This same Secret/ConfigMap pair
+# is also mounted into the daily bl8-ui-reconcile CronJob (.k8s/ui-reconcile-cronjob.yml), not
+# just the bl8-ui Deployment.
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -9,6 +9,7 @@ on:
 env:
   IMAGE_UI: ghcr.io/${{ github.repository_owner }}/bl8-ui
   IMAGE_UI_MIGRATE: ghcr.io/${{ github.repository_owner }}/bl8-ui-migrate
+  IMAGE_UI_RECONCILE: ghcr.io/${{ github.repository_owner }}/bl8-ui-reconcile
   IMAGE_REDIRECT: ghcr.io/${{ github.repository_owner }}/bl8-redirect
 
 jobs:
@@ -97,6 +98,19 @@ jobs:
             -t "${{ env.IMAGE_UI_MIGRATE }}:${IMAGE_TAG}" \
             ./ui
 
+      # ui/Dockerfile's `reconcile` target: same full-deps rationale as `migrate` above (needs
+      # tsx, absent from prod) — run daily as a CronJob (see .k8s/ui-reconcile-cronjob.yml)
+      # rather than a one-off Job, so a missed/failed billing webhook doesn't leave an account on
+      # Pro forever (see scripts/reconcile-subscriptions.ts's own header comment).
+      - name: Build ui reconciler
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        run: |
+          docker build \
+            --target reconcile \
+            -t "${{ env.IMAGE_UI_RECONCILE }}:${IMAGE_TAG}" \
+            ./ui
+
       - name: Push ui and redirect
         if: github.event_name == 'push'
         env:
@@ -105,6 +119,7 @@ jobs:
           docker push "${{ env.IMAGE_UI }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_UI }}:latest"
           docker push "${{ env.IMAGE_UI_MIGRATE }}:${IMAGE_TAG}"
+          docker push "${{ env.IMAGE_UI_RECONCILE }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_REDIRECT }}:${IMAGE_TAG}"
           docker push "${{ env.IMAGE_REDIRECT }}:latest"
 
@@ -186,6 +201,7 @@ jobs:
               --from-literal=PADDLE_WEBHOOK_SECRET="${{ secrets.UI_PADDLE_WEBHOOK_SECRET }}" \
               --from-literal=STRIPE_SECRET_KEY="${{ secrets.UI_STRIPE_SECRET_KEY }}" \
               --from-literal=STRIPE_WEBHOOK_SECRET="${{ secrets.UI_STRIPE_WEBHOOK_SECRET }}" \
+              --from-literal=SLACK_RECONCILE_WEBHOOK_URL="${{ secrets.UI_SLACK_RECONCILE_WEBHOOK_URL }}" \
               --dry-run=client -o yaml | kubectl apply -f - || exit 1
 
             # bl8-redirect runtime secrets — REDIS_ADDR is a bare host:port (not a URL), so its
@@ -255,6 +271,13 @@ jobs:
             kubectl apply -f ~/.k8s/ui-deployment.yml || exit 1
             sed -i "s|__IMAGE_REDIRECT__|${{ env.IMAGE_REDIRECT }}:${IMAGE_TAG}|g" ~/.k8s/redirect-deployment.yml
             kubectl apply -f ~/.k8s/redirect-deployment.yml || exit 1
+
+            # Daily subscription reconciliation CronJob (see .k8s/ui-reconcile-cronjob.yml and
+            # ui/scripts/reconcile-subscriptions.ts) — a CronJob's own spec is declarative, so a
+            # plain apply here is enough for kubectl to pick up the new image tag each deploy;
+            # no rollout/wait needed since nothing is running continuously.
+            sed -i "s|__IMAGE_UI_RECONCILE__|${{ env.IMAGE_UI_RECONCILE }}:${IMAGE_TAG}|g" ~/.k8s/ui-reconcile-cronjob.yml
+            kubectl apply -f ~/.k8s/ui-reconcile-cronjob.yml || exit 1
 
             # Explicit || exit 1 on both — under `set -e`, a failing command that's the first
             # half of an `&&` pair does NOT stop the script (only the last command in such a
