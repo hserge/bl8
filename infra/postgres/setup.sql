@@ -89,3 +89,14 @@ WHERE EXISTS (
 	SELECT FROM information_schema.tables
 	WHERE table_schema = 'public' AND table_name = 'click_events'
 )\gexec
+
+-- GRANT INSERT ON a table never covers a serial column's backing sequence — that needs its own
+-- privilege, or every insert fails with "permission denied for sequence click_events_id_seq"
+-- (exactly what happened in production: this line was missing here, so redirect/'s real click
+-- inserts silently failed from day one — see ui/drizzle/0007_grant_click_events_sequence.sql,
+-- which fixes an already-provisioned database; this keeps a *fresh* one from repeating it).
+SELECT 'GRANT USAGE, SELECT ON SEQUENCE click_events_id_seq TO ' || quote_ident(:'redirect_role')
+WHERE EXISTS (
+	SELECT FROM information_schema.tables
+	WHERE table_schema = 'public' AND table_name = 'click_events'
+)\gexec
