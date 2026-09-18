@@ -39,4 +39,4 @@ data:
   PUBLIC_PADDLE_CLIENT_TOKEN: "test_90c89af6bcdc7ec6a9b5f328656"
   PUBLIC_PADDLE_ENVIRONMENT: "sandbox"
   PUBLIC_PADDLE_PRO_PRICE_ID: "pri_01m2406tahap3kwc14e8vt5pn9"
-  STRIPE_PRO_PRICE_ID: "whsec_vd2DOAgbhywNBMRDGMS3IXREgfpMtfSM" # sandbox "price_1UEAc6DwLk8HikBvayw9haOi"
+  STRIPE_PRO_PRICE_ID: "price_1UH3RjKGpGol5PuFhuuR2TTr" # live; sandbox was "price_1UEAc6DwLk8HikBvayw9haOi"
